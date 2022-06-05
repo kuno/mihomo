@@ -39,6 +39,13 @@ type ShadowSocksROption struct {
 	UDP           bool   `proxy:"udp,omitempty"`
 }
 
+func (ssr *ShadowSocksR) Weight() int {
+	if ssr.option.Weight == 0 {
+		return 1
+	}
+	return ssr.option.Weight
+}
+
 // StreamConnContext implements C.ProxyAdapter
 func (ssr *ShadowSocksR) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (_ net.Conn, err error) {
 	if ctx.Done() != nil {

@@ -69,6 +69,7 @@ type proxyProviderSchema struct {
 	Payload       []map[string]any `provider:"payload,omitempty"`
 
 	HealthCheck healthCheckSchema   `provider:"health-check,omitempty"`
+	Weight      int                 `provider:"weight,omitempty"`
 	Override    OverrideSchema      `provider:"override,omitempty"`
 	Header      map[string][]string `provider:"header,omitempty"`
 }

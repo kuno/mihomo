@@ -85,6 +85,13 @@ func (ss *Socks5) DialContext(ctx context.Context, metadata *C.Metadata) (_ C.Co
 	return NewConn(c, ss), nil
 }
 
+func (ss *Socks5) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
+}
+
 // ListenPacketContext implements C.ProxyAdapter
 func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (_ C.PacketConn, err error) {
 	if err = ss.ResolveUDP(ctx, metadata); err != nil {

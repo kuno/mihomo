@@ -277,6 +277,13 @@ func (t *Trojan) Close() error {
 	return nil
 }
 
+func (t *Trojan) Weight() int {
+	if t.option.Weight == 0 {
+		return 1
+	}
+	return t.option.Weight
+}
+
 func NewTrojan(option TrojanOption) (*Trojan, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 

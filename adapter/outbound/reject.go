@@ -54,6 +54,10 @@ func NewRejectWithOption(option RejectOption) *Reject {
 	}
 }
 
+func (r *Reject) Weight() int {
+	return 1
+}
+
 func NewReject() *Reject {
 	return &Reject{
 		Base: &Base{

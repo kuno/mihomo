@@ -168,3 +168,7 @@ func NewDnsWithOption(option DnsOption) *Dns {
 		},
 	}
 }
+
+func (d *Dns) Weight() int {
+    return 1
+}

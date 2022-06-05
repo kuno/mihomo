@@ -124,6 +124,7 @@ type ProxySetProvider struct {
 type proxySetProvider struct {
 	baseProvider
 	*resource.Fetcher[[]C.Proxy]
+	weight           uint32
 	subscriptionInfo *SubscriptionInfo
 }
 
@@ -188,6 +189,7 @@ func NewProxySetProvider(name string, interval time.Duration, payload []map[stri
 			proxies:     []C.Proxy{},
 			healthCheck: hc,
 		},
+		weight:           1,
 	}
 
 	if len(payload) > 0 { // using as fallback proxies
@@ -365,7 +367,9 @@ func NewProxiesParser(pdName string, filter string, excludeFilter string, exclud
 		}
 		filterRegs = append(filterRegs, filterReg)
 	}
+	//}
 
+	//func proxiesParseAndFilter(filter string, excludeFilter string, excludeTypeArray []string, filterRegs []*regexp2.Regexp, excludeFilterReg *regexp2.Regexp, dialerProxy string, providerWeight int) resource.Parser[[]C.Proxy] {
 	return func(buf []byte) ([]C.Proxy, error) {
 		schema := &ProxySchema{}
 

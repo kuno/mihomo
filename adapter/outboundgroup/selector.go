@@ -108,6 +108,10 @@ func (s *Selector) selectedProxy(touch bool) C.Proxy {
 	return proxies[0]
 }
 
+func (s *Selector) Weight() int {
+	return 1
+}
+
 func (s *Selector) Providers() []P.ProxyProvider {
 	return s.providers
 }

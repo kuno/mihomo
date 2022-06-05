@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -99,6 +100,49 @@ func (gb *GroupBase) Touch() {
 	}
 }
 
+func filterProxyByWeight(proxies []C.Proxy, weightFilter string) []C.Proxy {
+	if weightFilter == "" {
+		return proxies
+	}
+	var newProxies []C.Proxy
+	re := regexp2.MustCompile(`(==|<=|!=|>=)([\d]+)`, 0)
+	if m, _ := re.FindStringMatch(weightFilter); m != nil {
+		gps := m.Groups()
+		opt := gps[1].Captures[0].String()
+		val, err := strconv.Atoi(gps[2].Captures[0].String())
+		if err != nil {
+			panic("invalid weight filter")
+		}
+
+		for _, p := range proxies {
+			switch opt {
+			case "==":
+				if p.Weight() == val {
+					newProxies = append(newProxies, p)
+				}
+			case "!=":
+				if p.Weight() != val {
+					newProxies = append(newProxies, p)
+				}
+			case ">=":
+				if p.Weight() >= val {
+					newProxies = append(newProxies, p)
+				}
+			case "<=":
+				if p.Weight() <= val {
+					newProxies = append(newProxies, p)
+				}
+			default:
+				panic("invalid weight filter")
+			}
+		}
+	} else {
+		newProxies = append(newProxies, proxies...)
+	}
+
+	return newProxies
+}
+
 func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	providerVersions := make([]uint32, len(gb.providers))
 	for i, pd := range gb.providers {
@@ -122,6 +166,7 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 		for _, pd := range gb.providers {
 			proxies = append(proxies, pd.Proxies()...)
 		}
+
 	} else {
 		for _, pd := range gb.providers {
 			if pd.VehicleType() == P.Compatible { // compatible provider unneeded filter

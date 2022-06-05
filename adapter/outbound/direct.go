@@ -81,6 +81,10 @@ func NewDirectWithOption(option DirectOption) *Direct {
 	}
 }
 
+func (d *Direct) Weight() int {
+	return 1
+}
+
 func NewDirect() *Direct {
 	return &Direct{
 		Base: &Base{

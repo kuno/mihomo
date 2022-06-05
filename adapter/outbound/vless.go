@@ -382,6 +382,13 @@ func parseVlessAddr(metadata *C.Metadata, xudp bool) *vless.DstAddr {
 	}
 }
 
+func (v *Vless) Weight() int {
+	if v.option.Weight == 0 {
+		return 1
+	}
+	return v.option.Weight
+}
+
 func NewVless(option VlessOption) (*Vless, error) {
 	var addons *vless.Addons
 	if len(option.Flow) >= 16 {

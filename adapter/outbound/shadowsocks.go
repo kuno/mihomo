@@ -134,6 +134,13 @@ type kcpTunOption struct {
 	KeepAlive    int    `obfs:"keepalive,omitempty"`
 }
 
+func (ss *ShadowSocks) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
+}
+
 // StreamConnContext implements C.ProxyAdapter
 func (ss *ShadowSocks) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (_ net.Conn, err error) {
 	useEarly := false

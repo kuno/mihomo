@@ -168,6 +168,7 @@ type BasicOption struct {
 	RoutingMark int         `proxy:"routing-mark,omitempty"`
 	IPVersion   C.DNSPrefer `proxy:"ip-version,omitempty"`
 	DialerProxy string      `proxy:"dialer-proxy,omitempty"` // don't apply this option into groups, but can set a group name in a proxy
+	Weight      int         `proxy:"weight,omitempty"`
 
 	//
 	// The following parameters are used internally, assign value by the structure decoder are disallowed

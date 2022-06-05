@@ -1,7 +1,9 @@
 NAME=mihomo
 BINDIR=bin
 BRANCH=$(shell git branch --show-current)
-ifeq ($(BRANCH),Alpha)
+ifeq ($(VERSION_TYPE),date)
+VERSION=$(shell date -u '+%Y.%m.%d-%H%M')
+else ifeq ($(BRANCH),Alpha)
 VERSION=alpha-$(shell git rev-parse --short HEAD)
 else ifeq ($(BRANCH),Beta)
 VERSION=beta-$(shell git rev-parse --short HEAD)
