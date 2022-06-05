@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -133,6 +134,21 @@ func (lb *LoadBalance) IsL3Protocol(metadata *C.Metadata) bool {
 	return lb.Unwrap(metadata, false).IsL3Protocol(metadata)
 }
 
+func strategyRandom(url string) strategyFn {
+	lastPick := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+		length := len(proxies)
+		idx := rand.Intn(length)
+		proxy := proxies[idx]
+		if proxy.Alive() {
+			lastPick = idx
+			return proxy
+		}
+
+		return proxies[lastPick]
+	}
+}
+
 func strategyRoundRobin(url string) strategyFn {
 	idx := 0
 	idxMutex := sync.Mutex{}
@@ -248,6 +264,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		strategyFn = strategyConsistentHashing(option.URL)
 	case "round-robin":
 		strategyFn = strategyRoundRobin(option.URL)
+	case "random":
+		strategyFn = strategyRandom(option.URL)
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL)
 	default:
