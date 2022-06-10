@@ -3,6 +3,7 @@ package outboundgroup
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 type GroupBase struct {
 	*outbound.Base
 	filterRegs       []*regexp2.Regexp
+	weightFilter     string
 	excludeFilterReg *regexp2.Regexp
 	excludeTypeArray []string
 	providers        []provider.ProxyProvider
@@ -38,6 +40,7 @@ type GroupBase struct {
 type GroupBaseOption struct {
 	outbound.BaseOption
 	filter         string
+	weightFilter   string
 	excludeFilter  string
 	excludeType    string
 	TestTimeout    int
@@ -73,6 +76,7 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 	gb := &GroupBase{
 		Base:             outbound.NewBase(opt.BaseOption),
 		filterRegs:       filterRegs,
+		weightFilter:     opt.weightFilter,
 		excludeFilterReg: excludeFilterReg,
 		excludeTypeArray: excludeTypeArray,
 		providers:        opt.providers,
@@ -100,6 +104,49 @@ func (gb *GroupBase) Touch() {
 	}
 }
 
+func filterProxyByWeight(proxies []C.Proxy, weightFilter string) []C.Proxy {
+	if weightFilter == "" {
+		return proxies
+	}
+	var newProxies []C.Proxy
+	re := regexp2.MustCompile(`(==|<=|!=|>=)([\d]+)`, 0)
+	if m, _ := re.FindStringMatch(weightFilter); m != nil {
+		gps := m.Groups()
+		opt := gps[1].Captures[0].String()
+		val, err := strconv.Atoi(gps[2].Captures[0].String())
+		if err != nil {
+			panic("invalid weight filter")
+		}
+
+		for _, p := range proxies {
+			switch opt {
+			case "==":
+				if p.Weight() == val {
+					newProxies = append(newProxies, p)
+				}
+			case "!=":
+				if p.Weight() != val {
+					newProxies = append(newProxies, p)
+				}
+			case ">=":
+				if p.Weight() >= val {
+					newProxies = append(newProxies, p)
+				}
+			case "<=":
+				if p.Weight() <= val {
+					newProxies = append(newProxies, p)
+				}
+			default:
+				panic("invalid weight filter")
+			}
+		}
+	} else {
+		newProxies = append(newProxies, proxies...)
+	}
+
+	return newProxies
+}
+
 func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	var proxies []C.Proxy
 	if len(gb.filterRegs) == 0 {
@@ -107,8 +154,12 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 			if touch {
 				pd.Touch()
 			}
-			proxies = append(proxies, pd.Proxies()...)
+
+			for _, p := range pd.Proxies() {
+				proxies = append(proxies, p)
+			}
 		}
+
 	} else {
 		for i, pd := range gb.providers {
 			if touch {
@@ -150,6 +201,8 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 			proxies = append(proxies, p...)
 		}
 	}
+
+	return filterProxyByWeight(proxies, gb.weightFilter)
 
 	if len(gb.providers) > 1 && len(gb.filterRegs) > 1 {
 		var newProxies []C.Proxy
@@ -210,7 +263,7 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 		return append(proxies, tunnel.Proxies()["COMPATIBLE"])
 	}
 
-	return proxies
+	return filterProxyByWeight(proxies, gb.weightFilter)
 }
 
 func (gb *GroupBase) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {

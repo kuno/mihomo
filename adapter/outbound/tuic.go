@@ -153,6 +153,10 @@ func (t *Tuic) ProxyInfo() C.ProxyInfo {
 	return info
 }
 
+func (t *Tuic) Weight() int {
+	return 1
+}
+
 func NewTuic(option TuicOption) (*Tuic, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	serverName := option.Server

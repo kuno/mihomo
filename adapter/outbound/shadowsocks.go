@@ -21,6 +21,9 @@ import (
 	restlsC "github.com/3andne/restls-client-go"
 	shadowsocks "github.com/metacubex/sing-shadowsocks2"
 	"github.com/sagernet/sing/common/bufio"
+
+	//shadowsocks "github.com/sagernet/sing-shadowsocks"
+	//"github.com/sagernet/sing-shadowsocks/shadowimpl"
 	M "github.com/sagernet/sing/common/metadata"
 	"github.com/sagernet/sing/common/uot"
 )
@@ -84,6 +87,13 @@ type restlsOption struct {
 	Host         string `obfs:"host"`
 	VersionHint  string `obfs:"version-hint"`
 	RestlsScript string `obfs:"restls-script,omitempty"`
+}
+
+func (ss *ShadowSocks) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
 }
 
 // StreamConnContext implements C.ProxyAdapter

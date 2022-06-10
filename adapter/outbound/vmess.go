@@ -95,6 +95,13 @@ type WSOptions struct {
 	V2rayHttpUpgradeFastOpen bool              `proxy:"v2ray-http-upgrade-fast-open,omitempty"`
 }
 
+func (v *Vmess) Weight() int {
+	if v.option.Weight == 0 {
+		return 1
+	}
+	return v.option.Weight
+}
+
 // StreamConnContext implements C.ProxyAdapter
 func (v *Vmess) StreamConnContext(ctx context.Context, c net.Conn, metadata *C.Metadata) (net.Conn, error) {
 	var err error

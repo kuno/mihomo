@@ -128,6 +128,10 @@ func (s *Ssh) ProxyInfo() C.ProxyInfo {
 	return info
 }
 
+func (s *Ssh) Weight() int {
+	return 1
+}
+
 func NewSsh(option SshOption) (*Ssh, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 

@@ -18,6 +18,10 @@ type Relay struct {
 	Icon   string
 }
 
+func (r *Relay) Weight() int {
+	return 1
+}
+
 // DialContext implements C.ProxyAdapter
 func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	proxies, chainProxies := r.proxies(metadata, true)
@@ -160,6 +164,7 @@ func NewRelay(option *GroupCommonOption, providers []provider.ProxyProvider) *Re
 				RoutingMark: option.RoutingMark,
 			},
 			"",
+			option.WeightFilter,
 			"",
 			"",
 			5000,

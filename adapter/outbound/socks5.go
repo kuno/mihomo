@@ -99,6 +99,13 @@ func (ss *Socks5) SupportWithDialer() C.NetWork {
 	return C.TCP
 }
 
+func (ss *Socks5) Weight() int {
+	if ss.option.Weight == 0 {
+		return 1
+	}
+	return ss.option.Weight
+}
+
 // ListenPacketContext implements C.ProxyAdapter
 func (ss *Socks5) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.PacketConn, err error) {
 	var cDialer C.Dialer = dialer.NewDialer(ss.Base.DialOptions(opts...)...)

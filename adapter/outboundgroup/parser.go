@@ -38,6 +38,8 @@ type GroupCommonOption struct {
 	ExcludeFilter       string   `group:"exclude-filter,omitempty"`
 	ExcludeType         string   `group:"exclude-type,omitempty"`
 	ExpectedStatus      string   `group:"expected-status,omitempty"`
+	RespectWeight       bool     `group:"respect-weight,omitempty"`
+	WeightFilter        string   `group:"weight-filter,omitempty"`
 	IncludeAll          bool     `group:"include-all,omitempty"`
 	IncludeAllProxies   bool     `group:"include-all-proxies,omitempty"`
 	IncludeAllProviders bool     `group:"include-all-providers,omitempty"`
@@ -49,7 +51,8 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 	decoder := structure.NewDecoder(structure.Option{TagName: "group", WeaklyTypedInput: true})
 
 	groupOption := &GroupCommonOption{
-		Lazy: true,
+		Lazy:          true,
+		RespectWeight: false,
 	}
 	if err := decoder.Decode(config, groupOption); err != nil {
 		return nil, errFormat
