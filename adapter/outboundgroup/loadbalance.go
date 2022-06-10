@@ -34,6 +34,40 @@ type LoadBalance struct {
 	Icon           string
 }
 
+type DescendingWeight []C.Proxy
+
+func (dw DescendingWeight) Len() int      { return len(dw) }
+func (dw DescendingWeight) Swap(i, j int) { dw[i], dw[j] = dw[j], dw[i] }
+func (dw DescendingWeight) Less(i, j int) bool {
+	return dw[i].Weight() > dw[j].Weight()
+}
+
+type ProxyRandomStatistic struct {
+	data   map[string]int
+	header string
+}
+
+func (prs *ProxyRandomStatistic) Total() int {
+	total := 0
+	for _, count := range prs.data {
+		total += count
+	}
+
+	return total
+}
+
+func (prs *ProxyRandomStatistic) Selected(name string) int {
+	return prs.data[name]
+}
+
+func (prs *ProxyRandomStatistic) Record(name string) {
+	if count, found := prs.data[name]; found {
+		prs.data[name] = count + 1
+		return
+	}
+	prs.data[name] = 1
+}
+
 var errStrategy = errors.New("unsupported strategy")
 
 func parseStrategy(config map[string]any) string {
@@ -88,6 +122,10 @@ func jumpHash(key uint64, buckets int32) int32 {
 	return int32(b)
 }
 
+func (lb *LoadBalance) Weight() int {
+	return 1
+}
+
 // DialContext implements C.ProxyAdapter
 func (lb *LoadBalance) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (c C.Conn, err error) {
 	proxy := lb.Unwrap(metadata, true)
@@ -134,18 +172,42 @@ func (lb *LoadBalance) IsL3Protocol(metadata *C.Metadata) bool {
 	return lb.Unwrap(metadata, false).IsL3Protocol(metadata)
 }
 
-func strategyRandom(url string) strategyFn {
-	lastPick := 0
-	return func(proxies []C.Proxy, metadata *C.Metadata) C.Proxy {
+func strategySimpleRandom(url string) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		length := len(proxies)
 		idx := rand.Intn(length)
 		proxy := proxies[idx]
-		if proxy.Alive() {
-			lastPick = idx
+		if proxy.AliveForTestUrl(url) {
 			return proxy
 		}
 
-		return proxies[lastPick]
+		return proxies[0]
+	}
+}
+
+func totalWeight(proxies []C.Proxy, base int) int {
+	total := base
+
+	for _, p := range proxies {
+		total += p.Weight()
+	}
+
+	return total
+}
+
+func strategyWeightedRandom(url string) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold := rand.Intn(total)
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if pxy.AliveForTestUrl(url) && sum >= threshold {
+				return pxy
+			}
+		}
+
+		return proxies[0]
 	}
 }
 
@@ -171,6 +233,23 @@ func strategyRoundRobin(url string) strategyFn {
 			if proxy.AliveForTestUrl(url) {
 				i++
 				return proxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
+func strategyWeightedRoundRobin(url string) strategyFn {
+	threshold := 0
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sum := 0
+		total := totalWeight(proxies, -1)
+		threshold = (threshold + 1) % total
+		for _, pxy := range proxies {
+			sum += pxy.Weight()
+			if threshold <= sum && pxy.AliveForTestUrl(url) {
+				return pxy
 			}
 		}
 
@@ -263,9 +342,17 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 	case "consistent-hashing":
 		strategyFn = strategyConsistentHashing(option.URL)
 	case "round-robin":
-		strategyFn = strategyRoundRobin(option.URL)
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRoundRobin(option.URL)
+		} else {
+			strategyFn = strategyRoundRobin(option.URL)
+		}
 	case "random":
-		strategyFn = strategyRandom(option.URL)
+		if option.RespectWeight {
+			strategyFn = strategyWeightedRandom(option.URL)
+		} else {
+			strategyFn = strategySimpleRandom(option.URL)
+		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL)
 	default:
@@ -280,6 +367,7 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 				RoutingMark: option.RoutingMark,
 			},
 			option.Filter,
+			option.WeightFilter,
 			option.ExcludeFilter,
 			option.ExcludeType,
 			option.TestTimeout,

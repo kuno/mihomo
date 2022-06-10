@@ -3,6 +3,7 @@ package outbound
 import (
 	"context"
 	"errors"
+
 	"github.com/metacubex/mihomo/component/dialer"
 	"github.com/metacubex/mihomo/component/loopback"
 	"github.com/metacubex/mihomo/component/resolver"
@@ -70,6 +71,10 @@ func NewDirectWithOption(option DirectOption) *Direct {
 		},
 		loopBack: loopback.NewDetector(),
 	}
+}
+
+func (d *Direct) Weight() int {
+	return 1
 }
 
 func NewDirect() *Direct {

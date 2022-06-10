@@ -30,6 +30,10 @@ func (f *Fallback) Now() string {
 	return proxy.Name()
 }
 
+func (f *Fallback) Weight() int {
+	return 1
+}
+
 // DialContext implements C.ProxyAdapter
 func (f *Fallback) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
 	proxy := f.findAliveProxy(true)
@@ -162,6 +166,7 @@ func NewFallback(option *GroupCommonOption, providers []provider.ProxyProvider) 
 				RoutingMark: option.RoutingMark,
 			},
 			option.Filter,
+			option.WeightFilter,
 			option.ExcludeFilter,
 			option.ExcludeType,
 			option.TestTimeout,

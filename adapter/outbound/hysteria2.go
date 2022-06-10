@@ -103,6 +103,10 @@ func (h *Hysteria2) ProxyInfo() C.ProxyInfo {
 	return info
 }
 
+func (h *Hysteria2) Weight() int {
+	return 1
+}
+
 func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	var salamanderPassword string

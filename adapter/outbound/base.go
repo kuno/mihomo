@@ -159,6 +159,7 @@ type BasicOption struct {
 	RoutingMark int    `proxy:"routing-mark,omitempty" group:"routing-mark,omitempty"`
 	IPVersion   string `proxy:"ip-version,omitempty" group:"ip-version,omitempty"`
 	DialerProxy string `proxy:"dialer-proxy,omitempty"` // don't apply this option into groups, but can set a group name in a proxy
+	Weight      int    `proxy:"weight,omitempty"`
 }
 
 type BaseOption struct {

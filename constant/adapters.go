@@ -27,6 +27,7 @@ const (
 	Selector
 	Fallback
 	URLTest
+	WeightPrioritize
 	LoadBalance
 
 	Shadowsocks
@@ -114,6 +115,7 @@ type ProxyAdapter interface {
 	Name() string
 	Type() AdapterType
 	Addr() string
+	Weight() int
 	SupportUDP() bool
 
 	// ProxyInfo contains some extra information maybe useful for MarshalJSON

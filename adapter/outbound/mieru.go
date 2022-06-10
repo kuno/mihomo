@@ -279,3 +279,7 @@ func beginAndEndPortFromPortRange(portRange string) (int, int, error) {
 	_, err := fmt.Sscanf(portRange, "%d-%d", &begin, &end)
 	return begin, end, err
 }
+
+func (m *Mieru) Weight() int {
+    return 1
+}
