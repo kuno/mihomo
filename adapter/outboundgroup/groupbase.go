@@ -202,8 +202,6 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 		}
 	}
 
-	return filterProxyByWeight(proxies, gb.weightFilter)
-
 	if len(gb.providers) > 1 && len(gb.filterRegs) > 1 {
 		var newProxies []C.Proxy
 		proxiesSet := map[string]struct{}{}
