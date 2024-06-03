@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -211,6 +212,22 @@ func strategyWeightedRandom(url string) strategyFn {
 	}
 }
 
+func strategyWeightedOrder(url string) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		sort.Slice(proxies, func(i, j int) bool {
+			return proxies[i].Weight() > proxies[j].Weight()
+		})
+
+		for _, pxy := range proxies {
+			if pxy.AliveForTestUrl(url) {
+				return pxy
+			}
+		}
+
+		return proxies[0]
+	}
+}
+
 func strategyRoundRobin(url string) strategyFn {
 	idx := 0
 	idxMutex := sync.Mutex{}
@@ -355,6 +372,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL)
+	case "weighted-order":
+		strategyFn = strategyWeightedOrder(option.URL)
 	default:
 		return nil, fmt.Errorf("%w: %s", errStrategy, strategy)
 	}
