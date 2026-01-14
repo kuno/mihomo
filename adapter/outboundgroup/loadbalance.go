@@ -215,25 +215,13 @@ func strategyWeightedRandom(url string) strategyFn {
 
 func strategyWeightedSpeedy(url string) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
-		// First, sort proxies by weight
 		sort.Slice(proxies, func(i, j int) bool {
-			return proxies[i].Weight() > proxies[j].Weight()
-		})
-
-		// Pick the top weighted proxies (up to 12)
-		limit := 12
-		if len(proxies) < limit {
-			limit = len(proxies)
-		}
-		weightedProxies := proxies[:limit]
-
-		// Then, sort proxies by last delay
-		sort.Slice(weightedProxies, func(i, j int) bool {
-			return weightedProxies[i].LastDelayForTestUrl(url) < weightedProxies[j].LastDelayForTestUrl(url)
+			// Using the ratio of Weight / Delay to determine the priority
+			return (proxies[i].Weight() / int(proxies[i].LastDelayForTestUrl(url))) > (proxies[j].Weight() / int(proxies[j].LastDelayForTestUrl(url)))
 		})
 
 		// Tries to return a alive proxy
-		for _, pxy := range weightedProxies {
+		for _, pxy := range proxies {
 			if pxy.AliveForTestUrl(url) {
 				return pxy
 			}
