@@ -212,7 +212,7 @@ func strategyWeightedRandom(url string) strategyFn {
 	}
 }
 
-func strategyWeightedOrder(url string) strategyFn {
+func strategyWeightedSpeedy(url string) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		// First, sort proxies by weight
 		sort.Slice(proxies, func(i, j int) bool {
@@ -386,8 +386,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		}
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL)
-	case "weighted-order":
-		strategyFn = strategyWeightedOrder(option.URL)
+	case "weighted-speedy":
+		strategyFn = strategyWeightedSpeedy(option.URL)
 	default:
 		return nil, fmt.Errorf("%w: %s", errStrategy, strategy)
 	}
