@@ -31,6 +31,7 @@ type LoadBalance struct {
 	strategyFn     strategyFn
 	testUrl        string
 	expectedStatus string
+	strategy       string
 	Hidden         bool
 	Icon           string
 }
@@ -357,14 +358,21 @@ func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
 	for _, proxy := range lb.GetProxies(false) {
 		all = append(all, proxy.Name())
 	}
-	return json.Marshal(map[string]any{
+	m := map[string]any{
 		"type":           lb.Type().String(),
 		"all":            all,
+		"strategy":       lb.strategy,
 		"testUrl":        lb.testUrl,
 		"expectedStatus": lb.expectedStatus,
 		"hidden":         lb.Hidden,
 		"icon":           lb.Icon,
-	})
+	}
+
+	if lb.strategy == "weighted-speedy" {
+		m["now"] = lb.Unwrap(nil, false).Name()
+	}
+
+	return json.Marshal(m)
 }
 
 func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvider, strategy string) (lb *LoadBalance, err error) {
@@ -409,6 +417,7 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
 		}),
 		strategyFn:     strategyFn,
 		disableUDP:     option.DisableUDP,
+		strategy:       strategy,
 		testUrl:        option.URL,
 		expectedStatus: option.ExpectedStatus,
 		Hidden:         option.Hidden,
