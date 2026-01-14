@@ -368,9 +368,7 @@ func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
 		"icon":           lb.Icon,
 	}
 
-	if lb.strategy == "weighted-speedy" {
-		m["now"] = lb.Unwrap(nil, false).Name()
-	}
+	m["now"] = lb.Unwrap(nil, false).Name()
 
 	return json.Marshal(m)
 }
