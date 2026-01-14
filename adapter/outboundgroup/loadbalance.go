@@ -359,7 +359,7 @@ func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
 		all = append(all, proxy.Name())
 	}
 	m := map[string]any{
-		"type":           lb.Type().String(),
+		"type":           fmt.Sprintf("%s (%s)", lb.Type().String(), lb.strategy),
 		"all":            all,
 		"strategy":       lb.strategy,
 		"testUrl":        lb.testUrl,
