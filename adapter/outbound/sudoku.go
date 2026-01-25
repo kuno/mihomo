@@ -107,6 +107,14 @@ func (s *Sudoku) ListenPacketContext(ctx context.Context, metadata *C.Metadata) 
 	return newPacketConn(N.NewThreadSafePacketConn(sudoku.NewUoTPacketConn(c)), s), nil
 }
 
+// Weight implements C.ProxyAdapter
+func (s *Sudoku) Weight() int {
+	if s.option.Weight == 0 {
+		return 1
+	}
+	return s.option.Weight
+}
+
 // SupportUOT implements C.ProxyAdapter
 func (s *Sudoku) SupportUOT() bool {
 	return true

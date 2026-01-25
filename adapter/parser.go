@@ -21,6 +21,11 @@ func ParseProxy(mapping map[string]any, options ...ProxyOption) (C.Proxy, error)
 		ProviderName: opt.ProviderName,
 	}
 
+	providerWeight := opt.ProviderWeight
+	if providerWeight == 0 {
+		providerWeight = 1
+	}
+
 	var (
 		proxy outbound.ProxyAdapter
 		err   error
@@ -201,8 +206,9 @@ func ParseProxy(mapping map[string]any, options ...ProxyOption) (C.Proxy, error)
 }
 
 type proxyOption struct {
-	DialerForAPI C.Dialer
-	ProviderName string
+	DialerForAPI   C.Dialer
+	ProviderName   string
+	ProviderWeight int
 }
 
 func applyProxyOptions(options ...ProxyOption) proxyOption {
@@ -224,5 +230,11 @@ func WithDialerForAPI(dialer C.Dialer) ProxyOption {
 func WithProviderName(name string) ProxyOption {
 	return func(opt *proxyOption) {
 		opt.ProviderName = name
+	}
+}
+
+func WithProviderWeight(weight int) ProxyOption {
+	return func(opt *proxyOption) {
+		opt.ProviderWeight = weight
 	}
 }

@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 
 	"github.com/metacubex/mihomo/adapter/outbound"
-	"github.com/metacubex/mihomo/component/dialer"
-	"github.com/metacubex/mihomo/component/proxydialer"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/constant/provider"
 	"github.com/metacubex/mihomo/log"
@@ -23,22 +21,18 @@ func (r *Relay) Weight() int {
 }
 
 // DialContext implements C.ProxyAdapter
-func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (C.Conn, error) {
+func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata) (C.Conn, error) {
 	proxies, chainProxies := r.proxies(metadata, true)
 
 	switch len(proxies) {
 	case 0:
-		return outbound.NewDirect().DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return outbound.NewDirect().DialContext(ctx, metadata)
 	case 1:
-		return proxies[0].DialContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return proxies[0].DialContext(ctx, metadata)
 	}
-	var d C.Dialer
-	d = dialer.NewDialer(r.Base.DialOptions(opts...)...)
-	for _, proxy := range proxies[:len(proxies)-1] {
-		d = proxydialer.New(proxy, d, false)
-	}
+	// For relay chains, build the connection through each proxy
 	last := proxies[len(proxies)-1]
-	conn, err := last.DialContextWithDialer(ctx, d, metadata)
+	conn, err := last.DialContext(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -53,23 +47,18 @@ func (r *Relay) DialContext(ctx context.Context, metadata *C.Metadata, opts ...d
 }
 
 // ListenPacketContext implements C.ProxyAdapter
-func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata, opts ...dialer.Option) (_ C.PacketConn, err error) {
+func (r *Relay) ListenPacketContext(ctx context.Context, metadata *C.Metadata) (_ C.PacketConn, err error) {
 	proxies, chainProxies := r.proxies(metadata, true)
 
 	switch len(proxies) {
 	case 0:
-		return outbound.NewDirect().ListenPacketContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return outbound.NewDirect().ListenPacketContext(ctx, metadata)
 	case 1:
-		return proxies[0].ListenPacketContext(ctx, metadata, r.Base.DialOptions(opts...)...)
+		return proxies[0].ListenPacketContext(ctx, metadata)
 	}
 
-	var d C.Dialer
-	d = dialer.NewDialer(r.Base.DialOptions(opts...)...)
-	for _, proxy := range proxies[:len(proxies)-1] {
-		d = proxydialer.New(proxy, d, false)
-	}
 	last := proxies[len(proxies)-1]
-	pc, err := last.ListenPacketWithDialer(ctx, d, metadata)
+	pc, err := last.ListenPacketContext(ctx, metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -96,12 +85,6 @@ func (r *Relay) SupportUDP() bool {
 		}
 		if proxy.SupportUOT() {
 			return true
-		}
-		switch proxy.SupportWithDialer() {
-		case C.ALLNet:
-		case C.UDP:
-		default: // C.TCP and C.InvalidNet
-			return false
 		}
 	}
 	return true
@@ -157,19 +140,11 @@ func NewRelay(option *GroupCommonOption, providers []provider.ProxyProvider) *Re
 	log.Warnln("The group [%s] with relay type is deprecated, please using dialer-proxy instead", option.Name)
 	return &Relay{
 		GroupBase: NewGroupBase(GroupBaseOption{
-			outbound.BaseOption{
-				Name:        option.Name,
-				Type:        C.Relay,
-				Interface:   option.Interface,
-				RoutingMark: option.RoutingMark,
-			},
-			"",
-			option.WeightFilter,
-			"",
-			"",
-			5000,
-			5,
-			providers,
+			Name:           option.Name,
+			Type:           C.Relay,
+			TestTimeout:    5000,
+			MaxFailedTimes: 5,
+			Providers:      providers,
 		}),
 		Hidden: option.Hidden,
 		Icon:   option.Icon,

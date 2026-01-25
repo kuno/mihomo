@@ -66,6 +66,14 @@ func (t *AnyTLS) ListenPacketContext(ctx context.Context, metadata *C.Metadata) 
 	return newPacketConn(N.NewThreadSafePacketConn(uot.NewLazyConn(c, uot.Request{Destination: destination})), t), nil
 }
 
+// Weight implements C.ProxyAdapter
+func (t *AnyTLS) Weight() int {
+	if t.option.Weight == 0 {
+		return 1
+	}
+	return t.option.Weight
+}
+
 // SupportUOT implements C.ProxyAdapter
 func (t *AnyTLS) SupportUOT() bool {
 	return true
