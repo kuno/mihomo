@@ -460,6 +460,9 @@ func parseVlessAddr(metadata *C.Metadata, xudp bool) *vless.DstAddr {
 }
 
 func NewVless(option VlessOption) (*Vless, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	var addons *vless.Addons
 	if len(option.Flow) >= 16 {
 		option.Flow = option.Flow[:16]
@@ -502,6 +505,7 @@ func NewVless(option VlessOption) (*Vless, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		client: client,
 		option: &option,

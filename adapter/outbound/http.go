@@ -146,6 +146,9 @@ func (h *Http) shakeHandContext(ctx context.Context, c net.Conn, metadata *C.Met
 }
 
 func NewHttp(option HttpOption) (*Http, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	var tlsConfig *tls.Config
 	if option.TLS {
 		sni := option.Server
@@ -179,6 +182,7 @@ func NewHttp(option HttpOption) (*Http, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		user:      option.UserName,
 		pass:      option.Password,

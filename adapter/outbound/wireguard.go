@@ -353,6 +353,9 @@ func (option WireGuardOption) Prefixes() ([]netip.Prefix, error) {
 }
 
 func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	outbound := &WireGuard{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
@@ -363,6 +366,7 @@ func NewWireGuard(option WireGuardOption) (*WireGuard, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 	}
 	outbound.dialer = option.NewDialer(outbound.DialOptions())

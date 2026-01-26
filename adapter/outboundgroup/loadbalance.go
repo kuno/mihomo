@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -127,38 +128,141 @@ func (lb *LoadBalance) IsL3Protocol(metadata *C.Metadata) bool {
 }
 
 func strategyRoundRobin(url string) strategyFn {
-	idx := 0
+	// SWRR state
+	type swrrState struct {
+		currentWeight   int32
+		effectiveWeight int32
+	}
+	stateMap := make(map[string]*swrrState)
 	idxMutex := sync.Mutex{}
+
+	// simple RR state
+	idx := 0
+
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		idxMutex.Lock()
 		defer idxMutex.Unlock()
 
-		i := 0
-		length := len(proxies)
-
-		if touch {
-			defer func() {
-				idx = (idx + i) % length
-			}()
+		if len(proxies) == 0 {
+			return nil
 		}
 
-		for ; i < length; i++ {
-			id := (idx + i) % length
-			proxy := proxies[id]
-			if proxy.AliveForTestUrl(url) {
-				i++
-				return proxy
+		weighted := false
+		for _, p := range proxies {
+			if p.Weight() > 1 {
+				weighted = true
+				break
 			}
+		}
+
+		if !weighted {
+			i := 0
+			length := len(proxies)
+			if touch {
+				defer func() {
+					idx = (idx + i) % length
+				}()
+			}
+			for ; i < length; i++ {
+				id := (idx + i) % length
+				proxy := proxies[id]
+				if proxy.AliveForTestUrl(url) {
+					i++
+					return proxy
+				}
+			}
+			return proxies[0]
+		}
+
+		var aliveProxies []C.Proxy
+		for _, p := range proxies {
+			if p.AliveForTestUrl(url) {
+				aliveProxies = append(aliveProxies, p)
+			}
+		}
+		if len(aliveProxies) == 0 {
+			aliveProxies = proxies
+		}
+
+		totalWeight := int32(0)
+		var bestProxy C.Proxy
+		var bestState *swrrState
+
+		for _, p := range aliveProxies {
+			name := p.Name()
+			s, ok := stateMap[name]
+			if !ok {
+				s = &swrrState{effectiveWeight: int32(p.Weight())}
+				stateMap[name] = s
+			} else {
+				s.effectiveWeight = int32(p.Weight())
+			}
+
+			s.currentWeight += s.effectiveWeight
+			totalWeight += s.effectiveWeight
+
+			if bestProxy == nil || s.currentWeight > bestState.currentWeight {
+				bestProxy = p
+				bestState = s
+			}
+		}
+
+		if bestProxy != nil {
+			bestState.currentWeight -= totalWeight
+			return bestProxy
 		}
 
 		return proxies[0]
 	}
 }
 
+func getWeightedIndex(key uint64, proxies []C.Proxy) int {
+	ranges := make([]uint32, len(proxies))
+	total := uint32(0)
+	for i, p := range proxies {
+		total += uint32(p.Weight())
+		ranges[i] = total
+	}
+
+	h := uint32(jumpHash(key, int32(total)))
+	idx := sort.Search(len(ranges), func(i int) bool {
+		return ranges[i] > h
+	})
+	if idx >= len(proxies) {
+		idx = 0
+	}
+	return idx
+}
+
 func strategyConsistentHashing(url string) strategyFn {
 	maxRetry := 5
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		key := utils.MapHash(getKey(metadata))
+
+		weighted := false
+		for _, p := range proxies {
+			if p.Weight() > 1 {
+				weighted = true
+				break
+			}
+		}
+
+		if weighted {
+			for i := 0; i < maxRetry; i, key = i+1, key+1 {
+				idx := getWeightedIndex(key, proxies)
+				proxy := proxies[idx]
+				if proxy.AliveForTestUrl(url) {
+					return proxy
+				}
+			}
+			for _, proxy := range proxies {
+				if proxy.AliveForTestUrl(url) {
+					return proxy
+				}
+			}
+			return proxies[0]
+		}
+
 		buckets := int32(len(proxies))
 		for i := 0; i < maxRetry; i, key = i+1, key+1 {
 			idx := jumpHash(key, buckets)
@@ -187,10 +291,23 @@ func strategyStickySessions(url string) strategyFn {
 		lru.WithSize[uint64, int](1000))
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		key := utils.MapHash(getKeyWithSrcAndDst(metadata))
+
+		weighted := false
+		for _, p := range proxies {
+			if p.Weight() > 1 {
+				weighted = true
+				break
+			}
+		}
+
 		length := len(proxies)
 		idx, has := lruCache.Get(key)
 		if !has || idx >= length {
-			idx = int(jumpHash(key+uint64(time.Now().UnixNano()), int32(length)))
+			if weighted {
+				idx = getWeightedIndex(key+uint64(time.Now().UnixNano()), proxies)
+			} else {
+				idx = int(jumpHash(key+uint64(time.Now().UnixNano()), int32(length)))
+			}
 		}
 
 		nowIdx := idx
@@ -203,7 +320,11 @@ func strategyStickySessions(url string) strategyFn {
 
 				return proxy
 			} else {
-				nowIdx = int(jumpHash(key+uint64(time.Now().UnixNano()), int32(length)))
+				if weighted {
+					nowIdx = getWeightedIndex(key+uint64(time.Now().UnixNano()), proxies)
+				} else {
+					nowIdx = int(jumpHash(key+uint64(time.Now().UnixNano()), int32(length)))
+				}
 			}
 		}
 
@@ -272,6 +393,7 @@ func NewLoadBalance(option GroupCommonOption, loadBalanceOption LoadBalanceOptio
 			MaxFailedTimes: option.MaxFailedTimes,
 			EmptyFallback:  emptyFallback,
 			Providers:      providers,
+			Weight:         uint16(option.Weight),
 		}),
 		strategyFn:     strategyFn,
 		disableUDP:     option.DisableUDP,
