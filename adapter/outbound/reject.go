@@ -45,11 +45,15 @@ func (r *Reject) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
 }
 
 func NewRejectWithOption(option RejectOption) *Reject {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	return &Reject{
 		Base: NewBase(BaseOption{
-			Name: option.Name,
-			Type: C.Reject,
-			UDP:  true,
+			Name:   option.Name,
+			Type:   C.Reject,
+			UDP:    true,
+			Weight: option.Weight,
 		}),
 	}
 }
@@ -84,6 +88,7 @@ func NewPass() *Reject {
 			tp:     C.Pass,
 			udp:    true,
 			prefer: C.DualStack,
+			weight: 1,
 		},
 	}
 }

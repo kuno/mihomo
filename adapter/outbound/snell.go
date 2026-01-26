@@ -170,6 +170,9 @@ func (s *Snell) ProxyInfo() C.ProxyInfo {
 }
 
 func NewSnell(option SnellOption) (*Snell, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	psk := []byte(option.Psk)
 
@@ -296,6 +299,7 @@ func NewSnell(option SnellOption) (*Snell, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option:          &option,
 		psk:             psk,

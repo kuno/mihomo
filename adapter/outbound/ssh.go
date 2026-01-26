@@ -132,6 +132,9 @@ func (s *Ssh) Close() error {
 }
 
 func NewSsh(option SshOption) (*Ssh, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 
 	config := ssh.ClientConfig{
@@ -212,6 +215,7 @@ func NewSsh(option SshOption) (*Ssh, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option: &option,
 		config: &config,
