@@ -3,6 +3,7 @@ package outboundgroup
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/dlclark/regexp2"
@@ -44,6 +45,7 @@ type GroupCommonOption struct {
 	Hidden              bool     `group:"hidden,omitempty"`
 	Icon                string   `group:"icon,omitempty"`
 	Weight              int      `group:"weight,omitempty"`
+	WeightFilter        string   `group:"weight-filter,omitempty"`
 }
 
 func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, providersMap map[string]P.ProxyProvider, AllProxies []string, AllProviders []string) (ProxyGroup, error) {
@@ -159,30 +161,43 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 			return nil, fmt.Errorf("%s: %w", groupName, err)
 		}
 
-		if _, ok := providersMap[groupName]; ok {
-			return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
-		}
-
-		if groupOption.URL == "" {
-			groupOption.URL = C.DefaultTestURL
-		}
-
-		// select don't need auto health check
-		if groupOption.Type != "select" && groupOption.Type != "relay" {
-			if groupOption.Interval == 0 {
-				groupOption.Interval = 300
+		if groupOption.WeightFilter != "" {
+			ps, err = filterByWeight(ps, groupOption.WeightFilter)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", groupName, err)
 			}
 		}
 
-		hc := provider.NewHealthCheck(ps, groupOption.URL, uint(groupOption.TestTimeout), uint(groupOption.Interval), groupOption.Lazy, expectedStatus)
-
-		pd, err := provider.NewCompatibleProvider(groupName, ps, hc)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", groupName, err)
+		if len(groupOption.Use) == 0 && len(ps) == 0 {
+			return nil, fmt.Errorf("%s: %w", groupName, errMissProxy)
 		}
 
-		providers = append([]P.ProxyProvider{pd}, providers...)
-		providersMap[groupName] = pd
+		if len(ps) != 0 {
+			if _, ok := providersMap[groupName]; ok {
+				return nil, fmt.Errorf("%s: %w", groupName, errDuplicateProvider)
+			}
+
+			if groupOption.URL == "" {
+				groupOption.URL = C.DefaultTestURL
+			}
+
+			// select don't need auto health check
+			if groupOption.Type != "select" && groupOption.Type != "relay" {
+				if groupOption.Interval == 0 {
+					groupOption.Interval = 300
+				}
+			}
+
+			hc := provider.NewHealthCheck(ps, groupOption.URL, uint(groupOption.TestTimeout), uint(groupOption.Interval), groupOption.Lazy, expectedStatus)
+
+			pd, err := provider.NewCompatibleProvider(groupName, ps, hc)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", groupName, err)
+			}
+
+			providers = append([]P.ProxyProvider{pd}, providers...)
+			providersMap[groupName] = pd
+		}
 	}
 
 	switch groupOption.Type {
@@ -257,4 +272,67 @@ func addTestUrlToProviders(providers []P.ProxyProvider, url string, expectedStat
 	for _, pd := range providers {
 		pd.RegisterHealthCheckTask(url, expectedStatus, filter, interval)
 	}
+}
+
+func filterByWeight(proxies []C.Proxy, filter string) ([]C.Proxy, error) {
+	var filtered []C.Proxy
+	var op string
+	var val int
+	var err error
+
+	filter = strings.TrimSpace(filter)
+	if strings.HasPrefix(filter, ">=") {
+		op = ">="
+		val, err = strconv.Atoi(filter[2:])
+	} else if strings.HasPrefix(filter, "<=") {
+		op = "<="
+		val, err = strconv.Atoi(filter[2:])
+	} else if strings.HasPrefix(filter, ">") {
+		op = ">"
+		val, err = strconv.Atoi(filter[1:])
+	} else if strings.HasPrefix(filter, "<") {
+		op = "<"
+		val, err = strconv.Atoi(filter[1:])
+	} else if strings.HasPrefix(filter, "=") {
+		op = "="
+		val, err = strconv.Atoi(filter[1:])
+	} else {
+		// implicit = if no operator (or maybe >=? sticking to explicit for now, defaulting to = if just number)
+		// Assuming just number means =
+		val, err = strconv.Atoi(filter)
+		if err == nil {
+			op = "="
+		} else {
+			return nil, fmt.Errorf("invalid weight filter format: %s", filter)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid weight value in filter: %s", filter)
+	}
+
+	target := uint16(val)
+
+	for _, p := range proxies {
+		w := p.Weight()
+		match := false
+		switch op {
+		case ">=":
+			match = w >= target
+		case "<=":
+			match = w <= target
+		case ">":
+			match = w > target
+		case "<":
+			match = w < target
+		case "=":
+			match = w == target
+		}
+
+		if match {
+			filtered = append(filtered, p)
+		}
+	}
+
+	return filtered, nil
 }
