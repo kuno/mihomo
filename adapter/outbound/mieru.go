@@ -146,6 +146,9 @@ func (m *Mieru) ensureClientIsRunning() error {
 }
 
 func NewMieru(option MieruOption) (*Mieru, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	config, err := buildMieruClientConfig(option)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build mieru client config: %w", err)
@@ -174,6 +177,7 @@ func NewMieru(option MieruOption) (*Mieru, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		option: &option,
 		client: c,

@@ -139,6 +139,9 @@ type ProxyAdapter interface {
 
 	// Close releasing associated resources
 	Close() error
+
+	// Weight return proxy weight, default 1
+	Weight() uint16
 }
 
 type DelayHistory struct {

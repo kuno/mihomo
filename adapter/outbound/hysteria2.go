@@ -103,6 +103,9 @@ func (h *Hysteria2) ProxyInfo() C.ProxyInfo {
 }
 
 func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	outbound := &Hysteria2{
 		Base: &Base{
@@ -114,6 +117,7 @@ func NewHysteria2(option Hysteria2Option) (*Hysteria2, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		option: &option,
 	}

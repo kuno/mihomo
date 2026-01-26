@@ -142,6 +142,9 @@ func (c *HysteriaOption) Speed() (uint64, uint64, error) {
 }
 
 func NewHysteria(option HysteriaOption) (*Hysteria, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	clientTransport := &transport.ClientTransport{}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	ports := option.Ports
@@ -249,6 +252,7 @@ func NewHysteria(option HysteriaOption) (*Hysteria, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		option:    &option,
 		client:    client,

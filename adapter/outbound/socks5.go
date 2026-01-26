@@ -169,6 +169,9 @@ func (ss *Socks5) clientHandshakeContext(ctx context.Context, c net.Conn, addr s
 }
 
 func NewSocks5(option Socks5Option) (*Socks5, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	var tlsConfig *tls.Config
 	if option.TLS {
 		var err error
@@ -198,6 +201,7 @@ func NewSocks5(option Socks5Option) (*Socks5, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		option:         &option,
 		user:           option.UserName,

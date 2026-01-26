@@ -154,6 +154,9 @@ func (*dnsPacketConn) SetWriteDeadline(t time.Time) error {
 }
 
 func NewDnsWithOption(option DnsOption) *Dns {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	return &Dns{
 		Base: &Base{
 			name:   option.Name,
@@ -165,6 +168,7 @@ func NewDnsWithOption(option DnsOption) *Dns {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 	}
 }

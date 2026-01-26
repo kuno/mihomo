@@ -65,6 +65,9 @@ func (d *Direct) IsL3Protocol(metadata *C.Metadata) bool {
 }
 
 func NewDirectWithOption(option DirectOption) *Direct {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	return &Direct{
 		Base: &Base{
 			name:   option.Name,
@@ -76,6 +79,7 @@ func NewDirectWithOption(option DirectOption) *Direct {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		loopBack: loopback.NewDetector(),
 	}
@@ -88,6 +92,7 @@ func NewDirect() *Direct {
 			tp:     C.Direct,
 			udp:    true,
 			prefer: C.DualStack,
+			weight: 1,
 		},
 		loopBack: loopback.NewDetector(),
 	}
@@ -100,6 +105,7 @@ func NewCompatible() *Direct {
 			tp:     C.Compatible,
 			udp:    true,
 			prefer: C.DualStack,
+			weight: 1,
 		},
 		loopBack: loopback.NewDetector(),
 	}

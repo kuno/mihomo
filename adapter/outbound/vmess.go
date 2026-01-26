@@ -399,6 +399,9 @@ func (v *Vmess) SupportUOT() bool {
 }
 
 func NewVmess(option VmessOption) (*Vmess, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	security := strings.ToLower(option.Cipher)
 	var options []vmess.ClientOption
 	if option.GlobalPadding {
@@ -436,6 +439,7 @@ func NewVmess(option VmessOption) (*Vmess, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		client: client,
 		option: &option,

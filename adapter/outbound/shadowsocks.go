@@ -285,6 +285,10 @@ func (ss *ShadowSocks) Close() error {
 }
 
 func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
+	// default weight is 1
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 	method, err := shadowsocks.CreateMethod(option.Cipher, shadowsocks.MethodOptions{
 		Password: option.Password,
@@ -469,6 +473,7 @@ func NewShadowSocks(option ShadowSocksOption) (*ShadowSocks, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		method: method,
 

@@ -221,6 +221,7 @@ func NewURLTest(option *GroupCommonOption, providers []P.ProxyProvider, options 
 			TestTimeout:    option.TestTimeout,
 			MaxFailedTimes: option.MaxFailedTimes,
 			Providers:      providers,
+			Weight:         uint16(option.Weight),
 		}),
 		fastSingle:     singledo.NewSingle[C.Proxy](time.Second * 10),
 		disableUDP:     option.DisableUDP,

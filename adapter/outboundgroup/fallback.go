@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/metacubex/mihomo/common/callback"
@@ -103,6 +104,26 @@ func (f *Fallback) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
 
 func (f *Fallback) findAliveProxy(touch bool) C.Proxy {
 	proxies := f.GetProxies(touch)
+
+	// Check if weighted
+	weighted := false
+	for _, p := range proxies {
+		if p.Weight() != 1 {
+			weighted = true
+			break
+		}
+	}
+
+	if weighted {
+		// make a copy to sort
+		sortedProxies := make([]C.Proxy, len(proxies))
+		copy(sortedProxies, proxies)
+		sort.SliceStable(sortedProxies, func(i, j int) bool {
+			return sortedProxies[i].Weight() > sortedProxies[j].Weight()
+		})
+		proxies = sortedProxies
+	}
+
 	for _, proxy := range proxies {
 		if len(f.selected) == 0 {
 			if proxy.AliveForTestUrl(f.testUrl) {
@@ -169,6 +190,7 @@ func NewFallback(option *GroupCommonOption, providers []P.ProxyProvider) *Fallba
 			TestTimeout:    option.TestTimeout,
 			MaxFailedTimes: option.MaxFailedTimes,
 			Providers:      providers,
+			Weight:         uint16(option.Weight),
 		}),
 		disableUDP:     option.DisableUDP,
 		testUrl:        option.URL,

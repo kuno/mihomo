@@ -134,6 +134,9 @@ func (s *Sudoku) buildConfig(metadata *C.Metadata) (*sudoku.ProtocolConfig, erro
 }
 
 func NewSudoku(option SudokuOption) (*Sudoku, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	if option.Server == "" {
 		return nil, fmt.Errorf("server is required")
 	}
@@ -218,6 +221,7 @@ func NewSudoku(option SudokuOption) (*Sudoku, error) {
 			iface:  option.Interface,
 			rmark:  option.RoutingMark,
 			prefer: option.IPVersion,
+			weight: option.Weight,
 		},
 		option:   &option,
 		baseConf: baseConf,

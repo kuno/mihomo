@@ -127,6 +127,7 @@ func NewSelector(option *GroupCommonOption, providers []P.ProxyProvider) *Select
 			TestTimeout:    option.TestTimeout,
 			MaxFailedTimes: option.MaxFailedTimes,
 			Providers:      providers,
+			Weight:         uint16(option.Weight),
 		}),
 		selected:   "COMPATIBLE",
 		disableUDP: option.DisableUDP,

@@ -42,6 +42,7 @@ type GroupCommonOption struct {
 	IncludeAllProviders bool     `group:"include-all-providers,omitempty"`
 	Hidden              bool     `group:"hidden,omitempty"`
 	Icon                string   `group:"icon,omitempty"`
+	Weight              int      `group:"weight,omitempty"`
 
 	// removed configs, only for error logging
 	Interface   string `group:"interface-name,omitempty"`
