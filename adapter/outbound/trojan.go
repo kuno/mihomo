@@ -281,6 +281,9 @@ func (t *Trojan) Close() error {
 }
 
 func NewTrojan(option TrojanOption) (*Trojan, error) {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
 
 	if option.SNI == "" {
@@ -299,6 +302,7 @@ func NewTrojan(option TrojanOption) (*Trojan, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option:      &option,
 		hexPassword: trojan.Key(option.Password),

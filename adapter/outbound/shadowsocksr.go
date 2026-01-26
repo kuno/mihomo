@@ -109,6 +109,9 @@ func (ssr *ShadowSocksR) ProxyInfo() C.ProxyInfo {
 func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 	// SSR protocol compatibility
 	// https://github.com/metacubex/mihomo/pull/2056
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	if option.Cipher == "none" {
 		option.Cipher = "dummy"
 	}
@@ -169,6 +172,7 @@ func NewShadowSocksR(option ShadowSocksROption) (*ShadowSocksR, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option:   &option,
 		cipher:   coreCiph,

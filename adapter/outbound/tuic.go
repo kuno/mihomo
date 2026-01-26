@@ -128,6 +128,9 @@ func (t *Tuic) ProxyInfo() C.ProxyInfo {
 
 func NewTuic(option TuicOption) (*Tuic, error) {
 	addr := net.JoinHostPort(option.Server, strconv.Itoa(option.Port))
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	serverName := option.Server
 	if option.SNI != "" {
 		serverName = option.SNI
@@ -249,6 +252,7 @@ func NewTuic(option TuicOption) (*Tuic, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option:     &option,
 		quicConfig: quicConfig,

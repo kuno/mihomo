@@ -40,6 +40,7 @@ type Base struct {
 	prefer C.DNSPrefer
 	dialer C.Dialer
 	id     uuid.UUID
+	weight uint16
 }
 
 type BaseOption struct {
@@ -54,9 +55,14 @@ type BaseOption struct {
 	Interface    string
 	RoutingMark  int
 	Prefer       C.DNSPrefer
+	Weight       uint16
 }
 
 func NewBase(opt BaseOption) *Base {
+	if opt.Weight == 0 {
+		opt.Weight = 1
+	}
+
 	return &Base{
 		name:   opt.Name,
 		addr:   opt.Addr,
@@ -70,6 +76,7 @@ func NewBase(opt BaseOption) *Base {
 		rmark:  opt.RoutingMark,
 		prefer: opt.Prefer,
 		id:     utils.NewUUIDV4(),
+		weight: opt.Weight,
 	}
 }
 
@@ -126,9 +133,10 @@ func (b *Base) IsL3Protocol(metadata *C.Metadata) bool {
 
 // MarshalJSON implements C.ProxyAdapter
 func (b *Base) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]string{
-		"type": b.Type().String(),
-		"id":   b.Id(),
+	return json.Marshal(map[string]any{
+		"type":   b.Type().String(),
+		"id":     b.Id(),
+		"weight": b.Weight(),
 	})
 }
 
@@ -175,6 +183,10 @@ func (b *Base) DialOptions() (opts []dialer.Option) {
 	return opts
 }
 
+func (b *Base) Weight() uint16 {
+	return b.weight
+}
+
 func (b *Base) ResolveUDP(ctx context.Context, metadata *C.Metadata) error {
 	if !metadata.Resolved() {
 		ip, err := resolveIPWithResolver(ctx, metadata.Host, b.prefer, resolver.DefaultResolver)
@@ -197,6 +209,7 @@ type BasicOption struct {
 	RoutingMark int         `proxy:"routing-mark,omitempty"`
 	IPVersion   C.DNSPrefer `proxy:"ip-version,omitempty"`
 	DialerProxy string      `proxy:"dialer-proxy,omitempty"` // don't apply this option into groups, but can set a group name in a proxy
+	Weight      uint16      `proxy:"weight,omitempty"`
 
 	//
 	// The following parameters are used internally, assign value by the structure decoder are disallowed

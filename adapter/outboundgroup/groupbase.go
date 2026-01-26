@@ -53,6 +53,7 @@ type GroupBaseOption struct {
 	MaxFailedTimes int
 	EmptyFallback  C.Proxy
 	Providers      []P.ProxyProvider
+	Weight         uint16
 }
 
 func NewGroupBase(opt GroupBaseOption) *GroupBase {
@@ -78,7 +79,7 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 	}
 
 	gb := &GroupBase{
-		Base:              outbound.NewBase(outbound.BaseOption{Name: opt.Name, Type: opt.Type}),
+		Base:              outbound.NewBase(outbound.BaseOption{Name: opt.Name, Type: opt.Type, Weight: opt.Weight}),
 		hidden:            opt.Hidden,
 		icon:              opt.Icon,
 		filterRegs:        filterRegs,

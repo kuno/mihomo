@@ -65,6 +65,9 @@ func (d *Direct) IsL3Protocol(metadata *C.Metadata) bool {
 }
 
 func NewDirectWithOption(option DirectOption) *Direct {
+	if option.Weight == 0 {
+		option.Weight = 1
+	}
 	return &Direct{
 		Base: NewBase(BaseOption{
 			Name:         option.Name,
@@ -76,6 +79,7 @@ func NewDirectWithOption(option DirectOption) *Direct {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		loopBack: loopback.NewDetector(),
 	}
