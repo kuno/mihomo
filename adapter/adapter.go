@@ -147,6 +147,7 @@ func (p *Proxy) MarshalJSON() ([]byte, error) {
 	mapping["name"] = p.Name()
 	mapping["udp"] = p.SupportUDP()
 	mapping["uot"] = p.SupportUOT()
+	mapping["weight"] = p.Weight()
 
 	proxyInfo := p.ProxyInfo()
 	mapping["xudp"] = proxyInfo.XUDP
