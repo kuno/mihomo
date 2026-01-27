@@ -15,7 +15,8 @@ import (
 )
 
 type URLTestOption struct {
-	Tolerance uint16 `group:"tolerance,omitempty"`
+	Tolerance     uint16 `group:"tolerance,omitempty"`
+	RespectWeight bool   `group:"respect-weight,omitempty"`
 }
 
 type URLTest struct {
@@ -25,6 +26,7 @@ type URLTest struct {
 	expectedStatus string
 	tolerance      uint16
 	disableUDP     bool
+	respectWeight  bool
 	fastNode       C.Proxy
 	fastSingle     *singledo.Single[C.Proxy]
 }
@@ -115,31 +117,70 @@ func (u *URLTest) fast(touch bool) C.Proxy {
 			}
 		}
 
-		fast := proxies[0]
-		minDelay := fast.LastDelayForTestUrl(u.testUrl)
-		fastNotExist := true
+		if u.respectWeight {
+			// Weight-based selection: score = weight / delay
+			var bestProxy C.Proxy
+			var maxScore float64
 
-		for _, proxy := range proxies[1:] {
-			if u.fastNode != nil && proxy.Name() == u.fastNode.Name() {
-				fastNotExist = false
+			for _, proxy := range proxies {
+				if !proxy.AliveForTestUrl(u.testUrl) {
+					continue
+				}
+
+				delay := proxy.LastDelayForTestUrl(u.testUrl)
+				weight := proxy.Weight()
+
+				if weight == 0 {
+					weight = 1
+				}
+
+				d := float64(delay)
+				if d <= 0 {
+					d = 1
+				}
+
+				score := float64(weight) / d
+
+				if bestProxy == nil || score > maxScore {
+					maxScore = score
+					bestProxy = proxy
+				}
 			}
 
-			if !proxy.AliveForTestUrl(u.testUrl) {
-				continue
+			if bestProxy != nil {
+				u.fastNode = bestProxy
+				return bestProxy, nil
 			}
+		} else {
+			// Original URLTest: fastest proxy
+			fast := proxies[0]
+			minDelay := fast.LastDelayForTestUrl(u.testUrl)
+			fastNotExist := true
 
-			delay := proxy.LastDelayForTestUrl(u.testUrl)
-			if delay < minDelay {
-				fast = proxy
-				minDelay = delay
+			for _, proxy := range proxies[1:] {
+				if u.fastNode != nil && proxy.Name() == u.fastNode.Name() {
+					fastNotExist = false
+				}
+
+				if !proxy.AliveForTestUrl(u.testUrl) {
+					continue
+				}
+
+				delay := proxy.LastDelayForTestUrl(u.testUrl)
+				if delay < minDelay {
+					fast = proxy
+					minDelay = delay
+				}
+
 			}
-
+			// tolerance
+			if u.fastNode == nil || fastNotExist || !u.fastNode.AliveForTestUrl(u.testUrl) || u.fastNode.LastDelayForTestUrl(u.testUrl) > fast.LastDelayForTestUrl(u.testUrl)+u.tolerance {
+				u.fastNode = fast
+			}
+			return u.fastNode, nil
 		}
-		// tolerance
-		if u.fastNode == nil || fastNotExist || !u.fastNode.AliveForTestUrl(u.testUrl) || u.fastNode.LastDelayForTestUrl(u.testUrl) > fast.LastDelayForTestUrl(u.testUrl)+u.tolerance {
-			u.fastNode = fast
-		}
-		return u.fastNode, nil
+
+		return proxies[0], nil
 	})
 	if shared && touch { // a shared fastSingle.Do() may cause providers untouched, so we touch them again
 		u.Touch()
@@ -167,15 +208,21 @@ func (u *URLTest) MarshalJSON() ([]byte, error) {
 	for _, proxy := range u.GetProxies(false) {
 		all = append(all, proxy.Name())
 	}
+
+	icon := u.Icon()
+	if u.respectWeight && icon == "" {
+		icon = "⚖️"
+	}
+
 	return json.Marshal(map[string]any{
-		"type":           u.Type().String(),
+		"type":           "URLTest",
 		"now":            u.Now(),
 		"all":            all,
 		"testUrl":        u.testUrl,
 		"expectedStatus": u.expectedStatus,
 		"fixed":          u.selected,
 		"hidden":         u.Hidden(),
-		"icon":           u.Icon(),
+		"icon":           icon,
 		"emptyFallback":  u.EmptyFallback().Name(),
 	})
 }
@@ -216,6 +263,7 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
 		testUrl:        option.URL,
 		expectedStatus: option.ExpectedStatus,
 		tolerance:      urlTestOption.Tolerance,
+		respectWeight:  urlTestOption.RespectWeight,
 	}
 
 	return urlTest, nil

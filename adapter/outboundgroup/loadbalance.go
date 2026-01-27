@@ -41,44 +41,6 @@ var errHashKey = errors.New("unsupported hash-key")
 // keyFn derives the value a hashing strategy pins a request on.
 type keyFn = func(metadata *C.Metadata) string
 
-func strategyWeightedSpeedy(url string) strategyFn {
-	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
-		var bestProxy C.Proxy
-		var maxScore float64
-
-		for _, proxy := range proxies {
-			if !proxy.AliveForTestUrl(url) {
-				continue
-			}
-
-			delay := proxy.LastDelayForTestUrl(url)
-			weight := proxy.Weight()
-
-			if weight == 0 {
-				weight = 1
-			}
-
-			d := float64(delay)
-			if d <= 0 {
-				d = 1
-			}
-
-			score := float64(weight) / d
-
-			if bestProxy == nil || score > maxScore {
-				maxScore = score
-				bestProxy = proxy
-			}
-		}
-
-		if bestProxy != nil {
-			return bestProxy
-		}
-
-		return proxies[0]
-	}
-}
-
 func getKey(metadata *C.Metadata) string {
 	if metadata == nil {
 		return ""
@@ -461,8 +423,6 @@ func NewLoadBalance(option GroupCommonOption, loadBalanceOption LoadBalanceOptio
 			return nil, fmt.Errorf("%w: round-robin does not hash", errHashKey)
 		}
 		strategyFn = strategyRoundRobin(option.URL)
-	case "weighted-speedy":
-		strategyFn = strategyWeightedSpeedy(option.URL)
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL, withKey(getKeyWithSrcAndDst))
 	default:
