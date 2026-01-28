@@ -257,6 +257,7 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
 			EmptyFallback:  emptyFallback,
 			Providers:      providers,
 			Weight:         uint16(option.Weight),
+			WeightFilter:   option.WeightFilter,
 		}),
 		fastSingle:     singledo.NewSingle[C.Proxy](time.Second * 10),
 		disableUDP:     option.DisableUDP,
