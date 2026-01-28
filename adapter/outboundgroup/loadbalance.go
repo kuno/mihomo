@@ -442,6 +442,7 @@ func NewLoadBalance(option GroupCommonOption, loadBalanceOption LoadBalanceOptio
 			EmptyFallback:  emptyFallback,
 			Providers:      providers,
 			Weight:         uint16(option.Weight),
+			WeightFilter:   option.WeightFilter,
 		}),
 		strategyFn:     strategyFn,
 		disableUDP:     option.DisableUDP,

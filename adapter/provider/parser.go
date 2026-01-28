@@ -42,6 +42,9 @@ type proxyProviderSchema struct {
 	HealthCheck healthCheckSchema   `provider:"health-check,omitempty"`
 	Override    overrideSchema      `provider:"override,omitempty"`
 	Header      map[string][]string `provider:"header,omitempty"`
+
+	// Configuration-only fields
+	Weight *int `provider:"weight,omitempty"`
 }
 
 func ParseProxyProvider(name string, mapping map[string]any, tunnel C.Tunnel) (P.ProxyProvider, error) {
@@ -54,6 +57,11 @@ func ParseProxyProvider(name string, mapping map[string]any, tunnel C.Tunnel) (P
 	}
 	if err := decoder.Decode(mapping, schema); err != nil {
 		return nil, err
+	}
+
+	// Propagate root-level weight to override if not set
+	if schema.Weight != nil && schema.Override.Weight == nil {
+		schema.Override.Weight = schema.Weight
 	}
 
 	expectedStatus, err := utils.NewUnsignedRanges[uint16](schema.HealthCheck.ExpectedStatus)
