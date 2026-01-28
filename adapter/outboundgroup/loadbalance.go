@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"sort"
 	"sync"
@@ -272,6 +273,26 @@ func getWeightedIndex(key uint64, proxies []C.Proxy) int {
 	return idx
 }
 
+func strategyRandom(url string) strategyFn {
+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+		if len(proxies) == 0 {
+			return nil
+		}
+
+		var aliveProxies []C.Proxy
+		for _, p := range proxies {
+			if p.AliveForTestUrl(url) {
+				aliveProxies = append(aliveProxies, p)
+			}
+		}
+
+		if len(aliveProxies) > 0 {
+			return aliveProxies[rand.Intn(len(aliveProxies))]
+		}
+		return proxies[rand.Intn(len(proxies))]
+	}
+}
+
 func strategyConsistentHashing(url string, keyOf keyFn) strategyFn {
 	maxRetry := 5
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
@@ -326,10 +347,7 @@ func strategyStickySessions(url string, keyOf keyFn) strategyFn {
 	lruCache := lru.New[uint64, int](
 		lru.WithAge[uint64, int](int64(ttl.Seconds())),
 		lru.WithSize[uint64, int](1000))
-	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
-<<<<<<< HEAD
-		key := utils.MapHash(keyOf(metadata))
-=======
+		return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		key := utils.MapHash(keyOf(metadata))
 
 		weighted := false
@@ -425,6 +443,8 @@ func NewLoadBalance(option GroupCommonOption, loadBalanceOption LoadBalanceOptio
 		strategyFn = strategyRoundRobin(option.URL)
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL, withKey(getKeyWithSrcAndDst))
+	case "random":
+		strategyFn = strategyRandom(option.URL)
 	default:
 		return nil, fmt.Errorf("%w: %s", errStrategy, loadBalanceOption.Strategy)
 	}
