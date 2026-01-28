@@ -195,6 +195,7 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
 			EmptyFallback:  emptyFallback,
 			Providers:      providers,
 			Weight:         uint16(option.Weight),
+			WeightFilter:   option.WeightFilter,
 		}),
 		disableUDP:     option.DisableUDP,
 		testUrl:        option.URL,
