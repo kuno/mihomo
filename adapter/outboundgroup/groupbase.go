@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,19 +22,20 @@ import (
 
 type GroupBase struct {
 	*outbound.Base
-	hidden            bool
-	icon              string
-	filterRegs        []*regexp2.Regexp
-	excludeFilterRegs []*regexp2.Regexp
-	excludeTypeArray  []string
-	providers         []P.ProxyProvider
-	failedTestMux     sync.Mutex
-	failedTimes       int
-	failedTime        time.Time
-	failedTesting     atomic.Bool
-	testTimeout       int
-	maxFailedTimes    int
-	emptyFallback     C.Proxy
+	hidden                 bool
+	icon                   string
+	filterRegs             []*regexp2.Regexp
+	excludeFilterRegs      []*regexp2.Regexp
+	excludeTypeArray       []string
+	weightFilterConditions []func(int) bool
+	providers              []P.ProxyProvider
+	failedTestMux          sync.Mutex
+	failedTimes            int
+	failedTime             time.Time
+	failedTesting          atomic.Bool
+	testTimeout            int
+	maxFailedTimes         int
+	emptyFallback          C.Proxy
 
 	// for GetProxies
 	getProxiesMutex  sync.Mutex
@@ -54,6 +56,7 @@ type GroupBaseOption struct {
 	EmptyFallback  C.Proxy
 	Providers      []P.ProxyProvider
 	Weight         uint16
+	WeightFilter   string
 }
 
 func NewGroupBase(opt GroupBaseOption) *GroupBase {
@@ -90,6 +93,15 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 		testTimeout:       opt.TestTimeout,
 		maxFailedTimes:    opt.MaxFailedTimes,
 		emptyFallback:     opt.EmptyFallback,
+	}
+
+	if opt.WeightFilter != "" {
+		conds, err := ParseWeightFilter(opt.WeightFilter)
+		if err != nil {
+			log.Errorln("Group %s parse weight filter error: %s", opt.Name, err)
+		} else {
+			gb.weightFilterConditions = conds
+		}
 	}
 
 	if gb.testTimeout == 0 {
@@ -141,12 +153,46 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	var proxies []C.Proxy
 	if len(gb.filterRegs) == 0 {
 		for _, pd := range gb.providers {
-			proxies = append(proxies, pd.Proxies()...)
+			if len(gb.weightFilterConditions) > 0 {
+				for _, p := range pd.Proxies() {
+					w := int(p.Weight())
+					keep := true
+					for _, cond := range gb.weightFilterConditions {
+						if !cond(w) {
+							keep = false
+							break
+						}
+					}
+					if keep {
+						proxies = append(proxies, p)
+					}
+				}
+			} else {
+				proxies = append(proxies, pd.Proxies()...)
+			}
 		}
 	} else {
 		for _, pd := range gb.providers {
 			if pd.VehicleType() == P.Compatible { // compatible provider unneeded filter
-				proxies = append(proxies, pd.Proxies()...)
+				if len(gb.weightFilterConditions) > 0 {
+					var newProxies []C.Proxy
+					for _, p := range pd.Proxies() {
+						w := int(p.Weight())
+						keep := true
+						for _, cond := range gb.weightFilterConditions {
+							if !cond(w) {
+								keep = false
+								break
+							}
+						}
+						if keep {
+							newProxies = append(newProxies, p)
+						}
+					}
+					proxies = append(proxies, newProxies...)
+				} else {
+					proxies = append(proxies, pd.Proxies()...)
+				}
 				continue
 			}
 
@@ -158,6 +204,20 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 					if mat, _ := filterReg.MatchString(name); mat {
 						if _, ok := proxiesSet[name]; !ok {
 							proxiesSet[name] = struct{}{}
+							// Check weight filter
+							if len(gb.weightFilterConditions) > 0 {
+								w := int(p.Weight())
+								keep := true
+								for _, cond := range gb.weightFilterConditions {
+									if !cond(w) {
+										keep = false
+										break
+									}
+								}
+								if !keep {
+									continue
+								}
+							}
 							newProxies = append(newProxies, p)
 						}
 					}
@@ -324,5 +384,164 @@ func (gb *GroupBase) healthCheck() {
 func (gb *GroupBase) onDialSuccess() {
 	if !gb.failedTesting.Load() {
 		gb.failedTimes = 0
+	}
+}
+
+func ParseWeightFilter(filter string) ([]func(int) bool, error) {
+	filter = strings.ToLower(strings.TrimSpace(filter))
+	if filter == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(filter, "&&")
+	var conditions []func(int) bool
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Handle range syntax like 10<w<=100
+		operators := []string{">=", "<=", ">", "<", "="}
+		var opsFound []string
+		var opIndices []int
+
+		tempPart := part
+		offset := 0
+		for {
+			idx := -1
+			foundOp := ""
+			for _, op := range operators {
+				i := strings.Index(tempPart, op)
+				if i != -1 {
+					if idx == -1 || i < idx {
+						idx = i
+						foundOp = op
+					}
+				}
+			}
+
+			if idx != -1 {
+				opsFound = append(opsFound, foundOp)
+				opIndices = append(opIndices, offset+idx)
+				tempPart = tempPart[idx+len(foundOp):]
+				offset += idx + len(foundOp)
+			} else {
+				break
+			}
+		}
+
+		if len(opsFound) == 2 {
+			firstOpIdx := opIndices[0]
+			firstOpLen := len(opsFound[0])
+			secondOpIdx := opIndices[1]
+
+			left := strings.TrimSpace(part[:firstOpIdx])
+			middle := strings.TrimSpace(part[firstOpIdx+firstOpLen : secondOpIdx])
+			right := strings.TrimSpace(part[secondOpIdx+len(opsFound[1]):])
+
+			if middle != "w" {
+				return nil, fmt.Errorf("invalid range format (middle must be 'w'): %s", part)
+			}
+
+			op1 := opsFound[0]
+			val1, err := strconv.Atoi(left)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value in range: %s", left)
+			}
+
+			cond1, err := createCondition(op1, val1, true)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, cond1)
+
+			op2 := opsFound[1]
+			val2, err := strconv.Atoi(right)
+			if err != nil {
+				return nil, fmt.Errorf("invalid value in range: %s", right)
+			}
+			cond2, err := createCondition(op2, val2, false)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, cond2)
+
+		} else if len(opsFound) == 1 {
+			op := opsFound[0]
+			idx := opIndices[0]
+			left := strings.TrimSpace(part[:idx])
+			right := strings.TrimSpace(part[idx+len(op):])
+
+			var val int
+			var err error
+			reverse := false
+
+			if left == "w" {
+				val, err = strconv.Atoi(right)
+			} else if right == "w" {
+				val, err = strconv.Atoi(left)
+				reverse = true
+			} else if left == "" && right != "" {
+				val, err = strconv.Atoi(right)
+			} else {
+				return nil, fmt.Errorf("invalid simple filter format: %s", part)
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("invalid value in filter: %s", part)
+			}
+
+			cond, err := createCondition(op, val, reverse)
+			if err != nil {
+				return nil, err
+			}
+			conditions = append(conditions, cond)
+
+		} else {
+			val, err := strconv.Atoi(part)
+			if err == nil {
+				conditions = append(conditions, func(w int) bool { return w == val })
+			} else {
+				return nil, fmt.Errorf("invalid filter format: %s", part)
+			}
+		}
+	}
+
+	return conditions, nil
+}
+
+func createCondition(op string, target int, reverse bool) (func(int) bool, error) {
+	if reverse {
+		switch op {
+		case ">=":
+			op = "<="
+		case "<=":
+			op = ">="
+		case ">":
+			op = "<"
+		case "<":
+			op = ">"
+		case "=":
+			op = "="
+		default:
+			return nil, fmt.Errorf("unknown operator: %s", op)
+		}
+	}
+
+	switch op {
+	case ">=":
+		return func(w int) bool { return w >= target }, nil
+	case "<=":
+		return func(w int) bool { return w <= target }, nil
+	case ">":
+		return func(w int) bool { return w > target }, nil
+	case "<":
+		return func(w int) bool { return w < target }, nil
+	case "=":
+		return func(w int) bool { return w == target }, nil
+	default:
+		return nil, fmt.Errorf("unknown operator: %s", op)
 	}
 }
