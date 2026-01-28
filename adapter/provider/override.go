@@ -20,6 +20,7 @@ type overrideSchema struct {
 	Interface      *string `provider:"interface-name,omitempty"`
 	RoutingMark    *int    `provider:"routing-mark,omitempty"`
 	IPVersion      *string `provider:"ip-version,omitempty"`
+	Weight         *int    `provider:"weight,omitempty"`
 
 	AdditionalPrefix *string                   `provider:"additional-prefix,omitempty"`
 	AdditionalSuffix *string                   `provider:"additional-suffix,omitempty"`
@@ -72,6 +73,11 @@ func (o *overrideSchema) Apply(mapping map[string]any) error {
 	}
 	if o.IPVersion != nil {
 		mapping["ip-version"] = *o.IPVersion
+	}
+	if o.Weight != nil {
+		if _, ok := mapping["weight"]; !ok {
+			mapping["weight"] = *o.Weight
+		}
 	}
 
 	for _, expr := range o.ProxyName {
