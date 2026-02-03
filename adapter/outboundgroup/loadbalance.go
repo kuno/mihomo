@@ -273,26 +273,6 @@ func getWeightedIndex(key uint64, proxies []C.Proxy) int {
 	return idx
 }
 
-func strategyRandom(url string) strategyFn {
-	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
-		if len(proxies) == 0 {
-			return nil
-		}
-
-		var aliveProxies []C.Proxy
-		for _, p := range proxies {
-			if p.AliveForTestUrl(url) {
-				aliveProxies = append(aliveProxies, p)
-			}
-		}
-
-		if len(aliveProxies) > 0 {
-			return aliveProxies[rand.Intn(len(aliveProxies))]
-		}
-		return proxies[rand.Intn(len(proxies))]
-	}
-}
-
 func strategyWeightedRandom(url string) strategyFn {
 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
 		if len(proxies) == 0 {
@@ -479,8 +459,6 @@ func NewLoadBalance(option GroupCommonOption, loadBalanceOption LoadBalanceOptio
 		strategyFn = strategyRoundRobin(option.URL)
 	case "sticky-sessions":
 		strategyFn = strategyStickySessions(option.URL, withKey(getKeyWithSrcAndDst))
-	case "random":
-		strategyFn = strategyRandom(option.URL)
 	case "weighted-random":
 		strategyFn = strategyWeightedRandom(option.URL)
 	default:
