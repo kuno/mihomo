@@ -6,9 +6,9 @@ VERSION=alpha-$(shell git rev-parse --short HEAD)
 else ifeq ($(BRANCH),Beta)
 VERSION=beta-$(shell git rev-parse --short HEAD)
 else ifeq ($(BRANCH),)
-VERSION=$(shell git describe --tags)
+VERSION=$(shell git describe --tags --abbrev=0)+$(shell git rev-parse --short HEAD)
 else
-VERSION=$(shell git describe --tags --abbrev=0)-$(shell git rev-parse --short HEAD)
+VERSION=$(shell git describe --tags --abbrev=0)+$(shell git rev-parse --short HEAD)
 endif
 
 BUILDTIME=$(shell date -u)
@@ -203,4 +203,3 @@ clean:
 
 CLANG ?= clang-14
 CFLAGS := -O2 -g -Wall -Werror $(CFLAGS)
-
