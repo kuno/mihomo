@@ -7,6 +7,7 @@ import (
 	"github.com/metacubex/mihomo/common/atomic"
 	"github.com/metacubex/mihomo/common/xsync"
 	"github.com/metacubex/mihomo/component/memory"
+	"github.com/metacubex/mihomo/component/profile/cachefile"
 )
 
 var DefaultManager *Manager
@@ -19,9 +20,11 @@ func init() {
 		downloadBlip:  atomic.NewInt64(0),
 		uploadTotal:   atomic.NewInt64(0),
 		downloadTotal: atomic.NewInt64(0),
+		persistDirty:  atomic.NewBool(false),
 		pid:           int32(os.Getpid()),
 	}
 
+	DefaultManager.restoreTotals()
 	go DefaultManager.handle()
 }
 
@@ -33,6 +36,7 @@ type Manager struct {
 	downloadBlip  atomic.Int64
 	uploadTotal   atomic.Int64
 	downloadTotal atomic.Int64
+	persistDirty  atomic.Bool
 	pid           int32
 	memory        uint64
 }
@@ -61,11 +65,13 @@ func (m *Manager) Range(f func(c Tracker) bool) {
 func (m *Manager) PushUploaded(size int64) {
 	m.uploadTemp.Add(size)
 	m.uploadTotal.Add(size)
+	m.persistDirty.Store(true)
 }
 
 func (m *Manager) PushDownloaded(size int64) {
 	m.downloadTemp.Add(size)
 	m.downloadTotal.Add(size)
+	m.persistDirty.Store(true)
 }
 
 func (m *Manager) Now() (up int64, down int64) {
@@ -110,15 +116,30 @@ func (m *Manager) ResetStatistic() {
 	m.downloadTemp.Store(0)
 	m.downloadBlip.Store(0)
 	m.downloadTotal.Store(0)
+	m.persistTotals()
 }
 
 func (m *Manager) handle() {
 	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
 	for range ticker.C {
 		m.uploadBlip.Store(m.uploadTemp.Swap(0))
 		m.downloadBlip.Store(m.downloadTemp.Swap(0))
+		if m.persistDirty.Swap(false) {
+			m.persistTotals()
+		}
 	}
+}
+
+func (m *Manager) restoreTotals() {
+	up, down := cachefile.Cache().GetTrafficTotals()
+	m.uploadTotal.Store(up)
+	m.downloadTotal.Store(down)
+}
+
+func (m *Manager) persistTotals() {
+	cachefile.Cache().SetTrafficTotals(m.uploadTotal.Load(), m.downloadTotal.Load())
 }
 
 type Snapshot struct {
