@@ -2,6 +2,7 @@ package cachefile
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 var (
 	initOnce     sync.Once
+	cacheMux     sync.Mutex
 	fileMode     os.FileMode = 0o666
 	defaultCache *CacheFile
 
@@ -28,7 +30,8 @@ var (
 
 // CacheFile store and update the cache file
 type CacheFile struct {
-	DB *bbolt.DB
+	DB   *bbolt.DB
+	path string
 }
 
 func (c *CacheFile) SetSelected(group, selected string) {
@@ -75,33 +78,60 @@ func (c *CacheFile) SelectedMap() map[string]string {
 }
 
 func (c *CacheFile) Close() error {
+	if c == nil || c.DB == nil {
+		return nil
+	}
 	return c.DB.Close()
 }
 
 func initCache() {
-	options := bbolt.Options{Timeout: time.Second, NoStatistics: true}
-	db, err := bbolt.Open(C.Path.Cache(), fileMode, &options)
-	switch err {
-	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
-		if err = os.Remove(C.Path.Cache()); err != nil {
-			log.Warnln("[CacheFile] remove invalid cache file error: %s", err.Error())
-			break
-		}
-		log.Infoln("[CacheFile] remove invalid cache file and create new one")
-		db, err = bbolt.Open(C.Path.Cache(), fileMode, &options)
+	defaultCache = &CacheFile{}
+	defaultCache.ensureOpen()
+}
+
+func (c *CacheFile) ensureOpen() {
+	cacheMux.Lock()
+	defer cacheMux.Unlock()
+
+	cachePath := C.Path.Cache()
+	if c.DB != nil && c.path == cachePath {
+		return
 	}
-	if err != nil {
-		log.Warnln("[CacheFile] can't open cache file: %s", err.Error())
+	if c.DB != nil {
+		if err := c.DB.Close(); err != nil {
+			log.Warnln("[CacheFile] close cache file %s failed: %s", c.path, err.Error())
+		}
+		c.DB = nil
 	}
 
-	defaultCache = &CacheFile{
-		DB: db,
+	db, _ := openCache(cachePath)
+	c.DB = db
+	c.path = cachePath
+}
+
+func openCache(cachePath string) (*bbolt.DB, error) {
+	if err := os.MkdirAll(filepath.Dir(cachePath), 0o777); err != nil {
+		return nil, err
 	}
+
+	options := bbolt.Options{Timeout: time.Second, NoStatistics: true}
+	db, err := bbolt.Open(cachePath, fileMode, &options)
+	switch err {
+	case bbolt.ErrInvalid, bbolt.ErrChecksum, bbolt.ErrVersionMismatch:
+		if err = os.Remove(cachePath); err != nil {
+			log.Debugln("[CacheFile] remove invalid cache file error: %s", err.Error())
+			break
+		}
+		log.Debugln("[CacheFile] remove invalid cache file and create new one")
+		db, err = bbolt.Open(cachePath, fileMode, &options)
+	}
+	return db, err
 }
 
 // Cache return singleton of CacheFile
 func Cache() *CacheFile {
 	initOnce.Do(initCache)
+	defaultCache.ensureOpen()
 
 	return defaultCache
 }
