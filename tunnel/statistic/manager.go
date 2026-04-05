@@ -24,7 +24,6 @@ func init() {
 		pid:           int32(os.Getpid()),
 	}
 
-	DefaultManager.restoreTotals()
 	go DefaultManager.handle()
 }
 
@@ -37,6 +36,7 @@ type Manager struct {
 	uploadTotal   atomic.Int64
 	downloadTotal atomic.Int64
 	persistDirty  atomic.Bool
+	restored      atomic.Bool
 	pid           int32
 	memory        uint64
 }
@@ -80,6 +80,13 @@ func (m *Manager) Now() (up int64, down int64) {
 
 func (m *Manager) Total() (up, down int64) {
 	return m.uploadTotal.Load(), m.downloadTotal.Load()
+}
+
+func (m *Manager) InitializePersistence() {
+	if !m.restored.CompareAndSwap(false, true) {
+		return
+	}
+	m.restoreTotals()
 }
 
 func (m *Manager) Memory() uint64 {
