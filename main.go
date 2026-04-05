@@ -27,6 +27,7 @@ import (
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/rules/provider"
+	"github.com/metacubex/mihomo/tunnel/statistic"
 
 	"go.uber.org/automaxprocs/maxprocs"
 )
@@ -171,6 +172,8 @@ func main() {
 			log.Fatalln("Initial configuration directory error: %s", err.Error())
 		}
 	}
+
+	statistic.DefaultManager.InitializePersistence()
 
 	if testConfig {
 		if len(configBytes) != 0 {
