@@ -22,41 +22,47 @@ import (
 
 type GroupBase struct {
 	*outbound.Base
-	hidden                 bool
-	icon                   string
-	filterRegs             []*regexp2.Regexp
-	excludeFilterRegs      []*regexp2.Regexp
-	excludeTypeArray       []string
-	weightFilterConditions []func(int) bool
-	providers              []P.ProxyProvider
-	failedTestMux          sync.Mutex
-	failedTimes            int
-	failedTime             time.Time
-	failedTesting          atomic.Bool
-	testTimeout            int
-	maxFailedTimes         int
-	emptyFallback          C.Proxy
+	hidden                          bool
+	icon                            string
+	filterRegs                      []*regexp2.Regexp
+	excludeFilterRegs               []*regexp2.Regexp
+	ipPureCountryFilterCodes        []string
+	excludeIPPureCountryFilterCodes []string
+	excludeTypeArray                []string
+	weightFilterConditions          []func(int) bool
+	providers                       []P.ProxyProvider
+	failedTestMux                   sync.Mutex
+	failedTimes                     int
+	failedTime                      time.Time
+	failedTesting                   atomic.Bool
+	testTimeout                     int
+	maxFailedTimes                  int
+	emptyFallback                   C.Proxy
 
 	// for GetProxies
 	getProxiesMutex  sync.Mutex
 	providerVersions []uint32
 	providerProxies  []C.Proxy
+	ipPureCacheMutex sync.Mutex
+	ipPureCache      map[string]ipPureCacheEntry
 }
 
 type GroupBaseOption struct {
-	Name           string
-	Type           C.AdapterType
-	Hidden         bool
-	Icon           string
-	Filter         string
-	ExcludeFilter  string
-	ExcludeType    string
-	TestTimeout    int
-	MaxFailedTimes int
-	EmptyFallback  C.Proxy
-	Providers      []P.ProxyProvider
-	Weight         uint16
-	WeightFilter   string
+	Name                       string
+	Type                       C.AdapterType
+	Hidden                     bool
+	Icon                       string
+	Filter                     string
+	ExcludeFilter              string
+	IPPureCountryFilter        string
+	ExcludeIPPureCountryFilter string
+	ExcludeType                string
+	TestTimeout                int
+	MaxFailedTimes             int
+	EmptyFallback              C.Proxy
+	Providers                  []P.ProxyProvider
+	Weight                     uint16
+	WeightFilter               string
 }
 
 func NewGroupBase(opt GroupBaseOption) *GroupBase {
@@ -82,17 +88,20 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 	}
 
 	gb := &GroupBase{
-		Base:              outbound.NewBase(outbound.BaseOption{Name: opt.Name, Type: opt.Type, Weight: opt.Weight}),
-		hidden:            opt.Hidden,
-		icon:              opt.Icon,
-		filterRegs:        filterRegs,
-		excludeFilterRegs: excludeFilterRegs,
-		excludeTypeArray:  excludeTypeArray,
-		providers:         opt.Providers,
-		failedTesting:     atomic.NewBool(false),
-		testTimeout:       opt.TestTimeout,
-		maxFailedTimes:    opt.MaxFailedTimes,
-		emptyFallback:     opt.EmptyFallback,
+		Base:                            outbound.NewBase(outbound.BaseOption{Name: opt.Name, Type: opt.Type, Weight: opt.Weight}),
+		hidden:                          opt.Hidden,
+		icon:                            opt.Icon,
+		filterRegs:                      filterRegs,
+		excludeFilterRegs:               excludeFilterRegs,
+		ipPureCountryFilterCodes:        splitCountryFilter(opt.IPPureCountryFilter),
+		excludeIPPureCountryFilterCodes: splitCountryFilter(opt.ExcludeIPPureCountryFilter),
+		excludeTypeArray:                excludeTypeArray,
+		providers:                       opt.Providers,
+		failedTesting:                   atomic.NewBool(false),
+		testTimeout:                     opt.TestTimeout,
+		maxFailedTimes:                  opt.MaxFailedTimes,
+		emptyFallback:                   opt.EmptyFallback,
+		ipPureCache:                     map[string]ipPureCacheEntry{},
 	}
 
 	if opt.WeightFilter != "" {
@@ -116,6 +125,10 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 
 func (gb *GroupBase) Hidden() bool {
 	return gb.hidden
+}
+
+func (gb *GroupBase) hasIPPureFilter() bool {
+	return len(gb.ipPureCountryFilterCodes) > 0 || len(gb.excludeIPPureCountryFilterCodes) > 0
 }
 
 func (gb *GroupBase) Icon() string {
@@ -146,7 +159,7 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	defer gb.getProxiesMutex.Unlock()
 
 	// return the cached proxies if version not changed
-	if slices.Equal(providerVersions, gb.providerVersions) {
+	if slices.Equal(providerVersions, gb.providerVersions) && !gb.hasIPPureFilter() {
 		return gb.providerProxies
 	}
 
@@ -283,6 +296,8 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 		}
 		proxies = newProxies
 	}
+
+	proxies = gb.filterIPPureProxies(proxies)
 
 	if len(proxies) == 0 {
 		return []C.Proxy{gb.EmptyFallback()}

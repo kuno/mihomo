@@ -23,28 +23,30 @@ var (
 )
 
 type GroupCommonOption struct {
-	Name                string   `group:"name"`
-	Type                string   `group:"type"`
-	Proxies             []string `group:"proxies,omitempty"`
-	Use                 []string `group:"use,omitempty"`
-	URL                 string   `group:"url,omitempty"`
-	Interval            int      `group:"interval,omitempty"`
-	TestTimeout         int      `group:"timeout,omitempty"`
-	MaxFailedTimes      int      `group:"max-failed-times,omitempty"`
-	EmptyFallback       string   `group:"empty-fallback,omitempty"`
-	Lazy                bool     `group:"lazy,omitempty"`
-	DisableUDP          bool     `group:"disable-udp,omitempty"`
-	Filter              string   `group:"filter,omitempty"`
-	ExcludeFilter       string   `group:"exclude-filter,omitempty"`
-	ExcludeType         string   `group:"exclude-type,omitempty"`
-	ExpectedStatus      string   `group:"expected-status,omitempty"`
-	IncludeAll          bool     `group:"include-all,omitempty"`
-	IncludeAllProxies   bool     `group:"include-all-proxies,omitempty"`
-	IncludeAllProviders bool     `group:"include-all-providers,omitempty"`
-	Hidden              bool     `group:"hidden,omitempty"`
-	Icon                string   `group:"icon,omitempty"`
-	Weight              int      `group:"weight,omitempty"`
-	WeightFilter        string   `group:"weight-filter,omitempty"`
+	Name                       string   `group:"name"`
+	Type                       string   `group:"type"`
+	Proxies                    []string `group:"proxies,omitempty"`
+	Use                        []string `group:"use,omitempty"`
+	URL                        string   `group:"url,omitempty"`
+	Interval                   int      `group:"interval,omitempty"`
+	TestTimeout                int      `group:"timeout,omitempty"`
+	MaxFailedTimes             int      `group:"max-failed-times,omitempty"`
+	EmptyFallback              string   `group:"empty-fallback,omitempty"`
+	Lazy                       bool     `group:"lazy,omitempty"`
+	DisableUDP                 bool     `group:"disable-udp,omitempty"`
+	Filter                     string   `group:"filter,omitempty"`
+	ExcludeFilter              string   `group:"exclude-filter,omitempty"`
+	IPPureCountryFilter        string   `group:"ippure-country-filter,omitempty"`
+	ExcludeIPPureCountryFilter string   `group:"exclude-ippure-country-filter,omitempty"`
+	ExcludeType                string   `group:"exclude-type,omitempty"`
+	ExpectedStatus             string   `group:"expected-status,omitempty"`
+	IncludeAll                 bool     `group:"include-all,omitempty"`
+	IncludeAllProxies          bool     `group:"include-all-proxies,omitempty"`
+	IncludeAllProviders        bool     `group:"include-all-providers,omitempty"`
+	Hidden                     bool     `group:"hidden,omitempty"`
+	Icon                       string   `group:"icon,omitempty"`
+	Weight                     int      `group:"weight,omitempty"`
+	WeightFilter               string   `group:"weight-filter,omitempty"`
 }
 
 func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, providersMap map[string]P.ProxyProvider, AllProxies []string, AllProviders []string) (ProxyGroup, error) {
@@ -69,6 +71,12 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 	}
 	if _, ok := config["dialer-proxy"]; ok {
 		log.Errorln("The group [%s] with dialer-proxy configuration is not allowed, please set it directly on the proxy instead", groupOption.Name)
+	}
+	if _, ok := config["geoip-filter"]; ok {
+		log.Errorln("The group [%s] with geoip-filter configuration was removed, please use ippure-country-filter instead", groupOption.Name)
+	}
+	if _, ok := config["exclude-geoip-filter"]; ok {
+		log.Errorln("The group [%s] with exclude-geoip-filter configuration was removed, please use exclude-ippure-country-filter instead", groupOption.Name)
 	}
 
 	groupName := groupOption.Name
