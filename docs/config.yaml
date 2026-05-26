@@ -1763,6 +1763,7 @@ proxy-groups:
     filter: "HK|TW" # 正则表达式，过滤 provider1 中节点名包含 HK 或 TW
     # ippure-country-filter: "us,jp" # 通过节点访问 https://my.ippure.com/v1/info，按出口 IP 的 countryCode 过滤
     # exclude-ippure-country-filter: "cn" # 排除指定出口国家/地区；该过滤会主动请求外部 API，并缓存结果
+    # ippure-fraud-score-filter: "3<=f<10" # 按 IPPure fraudScore 过滤，支持类似 weight-filter 的语法：f<30、3<=f<10
     use:
       - provider1
     proxies:

@@ -38,6 +38,7 @@ type GroupCommonOption struct {
 	ExcludeFilter              string   `group:"exclude-filter,omitempty"`
 	IPPureCountryFilter        string   `group:"ippure-country-filter,omitempty"`
 	ExcludeIPPureCountryFilter string   `group:"exclude-ippure-country-filter,omitempty"`
+	IPPureFraudScoreFilter     string   `group:"ippure-fraud-score-filter,omitempty"`
 	ExcludeType                string   `group:"exclude-type,omitempty"`
 	ExpectedStatus             string   `group:"expected-status,omitempty"`
 	IncludeAll                 bool     `group:"include-all,omitempty"`

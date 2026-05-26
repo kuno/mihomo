@@ -28,6 +28,7 @@ type GroupBase struct {
 	excludeFilterRegs               []*regexp2.Regexp
 	ipPureCountryFilterCodes        []string
 	excludeIPPureCountryFilterCodes []string
+	ipPureFraudScoreConditions      []func(int) bool
 	excludeTypeArray                []string
 	weightFilterConditions          []func(int) bool
 	providers                       []P.ProxyProvider
@@ -56,6 +57,7 @@ type GroupBaseOption struct {
 	ExcludeFilter              string
 	IPPureCountryFilter        string
 	ExcludeIPPureCountryFilter string
+	IPPureFraudScoreFilter     string
 	ExcludeType                string
 	TestTimeout                int
 	MaxFailedTimes             int
@@ -113,6 +115,15 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 		}
 	}
 
+	if opt.IPPureFraudScoreFilter != "" {
+		conds, err := ParseIPPureFraudScoreFilter(opt.IPPureFraudScoreFilter)
+		if err != nil {
+			log.Errorln("Group %s parse ippure fraud score filter error: %s", opt.Name, err)
+		} else {
+			gb.ipPureFraudScoreConditions = conds
+		}
+	}
+
 	if gb.testTimeout == 0 {
 		gb.testTimeout = 5000
 	}
@@ -128,7 +139,9 @@ func (gb *GroupBase) Hidden() bool {
 }
 
 func (gb *GroupBase) hasIPPureFilter() bool {
-	return len(gb.ipPureCountryFilterCodes) > 0 || len(gb.excludeIPPureCountryFilterCodes) > 0
+	return len(gb.ipPureCountryFilterCodes) > 0 ||
+		len(gb.excludeIPPureCountryFilterCodes) > 0 ||
+		len(gb.ipPureFraudScoreConditions) > 0
 }
 
 func (gb *GroupBase) Icon() string {
@@ -403,6 +416,14 @@ func (gb *GroupBase) onDialSuccess() {
 }
 
 func ParseWeightFilter(filter string) ([]func(int) bool, error) {
+	return parseIntFilter(filter, []string{"w", "weight"})
+}
+
+func ParseIPPureFraudScoreFilter(filter string) ([]func(int) bool, error) {
+	return parseIntFilter(filter, []string{"f", "fs", "fraud", "fraud-score", "fraudscore"})
+}
+
+func parseIntFilter(filter string, valueNames []string) ([]func(int) bool, error) {
 	filter = strings.ToLower(strings.TrimSpace(filter))
 	if filter == "" {
 		return nil, nil
@@ -456,8 +477,8 @@ func ParseWeightFilter(filter string) ([]func(int) bool, error) {
 			middle := strings.TrimSpace(part[firstOpIdx+firstOpLen : secondOpIdx])
 			right := strings.TrimSpace(part[secondOpIdx+len(opsFound[1]):])
 
-			if middle != "w" {
-				return nil, fmt.Errorf("invalid range format (middle must be 'w'): %s", part)
+			if !isFilterValueName(middle, valueNames) {
+				return nil, fmt.Errorf("invalid range format (middle must be %s): %s", strings.Join(valueNames, "/"), part)
 			}
 
 			op1 := opsFound[0]
@@ -493,9 +514,9 @@ func ParseWeightFilter(filter string) ([]func(int) bool, error) {
 			var err error
 			reverse := false
 
-			if left == "w" {
+			if isFilterValueName(left, valueNames) {
 				val, err = strconv.Atoi(right)
-			} else if right == "w" {
+			} else if isFilterValueName(right, valueNames) {
 				val, err = strconv.Atoi(left)
 				reverse = true
 			} else if left == "" && right != "" {
@@ -525,6 +546,15 @@ func ParseWeightFilter(filter string) ([]func(int) bool, error) {
 	}
 
 	return conditions, nil
+}
+
+func isFilterValueName(value string, names []string) bool {
+	for _, name := range names {
+		if value == name {
+			return true
+		}
+	}
+	return false
 }
 
 func createCondition(op string, target int, reverse bool) (func(int) bool, error) {
