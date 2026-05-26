@@ -41,11 +41,10 @@ type GroupBase struct {
 	emptyFallback                   C.Proxy
 
 	// for GetProxies
-	getProxiesMutex  sync.Mutex
-	providerVersions []uint32
-	providerProxies  []C.Proxy
-	ipPureCacheMutex sync.Mutex
-	ipPureCache      map[string]ipPureCacheEntry
+	getProxiesMutex     sync.Mutex
+	providerVersions    []uint32
+	providerProxies     []C.Proxy
+	ipPureFilterExpires time.Time
 }
 
 type GroupBaseOption struct {
@@ -103,7 +102,6 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 		testTimeout:                     opt.TestTimeout,
 		maxFailedTimes:                  opt.MaxFailedTimes,
 		emptyFallback:                   opt.EmptyFallback,
-		ipPureCache:                     map[string]ipPureCacheEntry{},
 	}
 
 	if opt.WeightFilter != "" {
@@ -172,7 +170,9 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 	defer gb.getProxiesMutex.Unlock()
 
 	// return the cached proxies if version not changed
-	if slices.Equal(providerVersions, gb.providerVersions) && !gb.hasIPPureFilter() {
+	sameProviderVersions := slices.Equal(providerVersions, gb.providerVersions)
+	if sameProviderVersions && len(gb.providerProxies) > 0 &&
+		(!gb.hasIPPureFilter() || time.Now().Before(gb.ipPureFilterExpires)) {
 		return gb.providerProxies
 	}
 
@@ -310,15 +310,29 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 		proxies = newProxies
 	}
 
-	proxies = gb.filterIPPureProxies(proxies)
+	var usedStaleIPPure bool
+	proxies, usedStaleIPPure = gb.filterIPPureProxies(proxies)
 
 	if len(proxies) == 0 {
+		if gb.hasIPPureFilter() && sameProviderVersions && len(gb.providerProxies) > 0 {
+			gb.ipPureFilterExpires = time.Now().Add(ipPureStaleFilterTTL)
+			return gb.providerProxies
+		}
 		return []C.Proxy{gb.EmptyFallback()}
 	}
 
 	// only cache when proxies not empty
 	gb.providerVersions = providerVersions
 	gb.providerProxies = proxies
+	if gb.hasIPPureFilter() {
+		if usedStaleIPPure {
+			gb.ipPureFilterExpires = time.Now().Add(ipPureStaleFilterTTL)
+		} else {
+			gb.ipPureFilterExpires = time.Now().Add(defaultIPPureCacheTTL)
+		}
+	} else {
+		gb.ipPureFilterExpires = time.Time{}
+	}
 
 	return proxies
 }

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/common/singleflight"
 	"github.com/metacubex/mihomo/component/ca"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
@@ -24,6 +25,8 @@ const (
 	defaultIPPureUA       = "Mozilla/5.0 (compatible; mihomo ippure-filter)"
 	defaultIPPureTimeout  = 8 * time.Second
 	defaultIPPureCacheTTL = 30 * time.Minute
+	defaultIPPureErrorTTL = time.Minute
+	ipPureStaleFilterTTL  = 15 * time.Second
 	maxIPPureConcurrency  = 8
 	maxIPPureErrorBody    = 256
 )
@@ -52,12 +55,20 @@ type ipPureCacheEntry struct {
 	expiresAt time.Time
 }
 
-func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) []C.Proxy {
+var (
+	ipPureCacheMutex sync.Mutex
+	ipPureCache      = map[string]ipPureCacheEntry{}
+	ipPureSingle     singleflight.Group[*ipPureInfo]
+)
+
+func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) ([]C.Proxy, bool) {
 	if !gb.hasIPPureFilter() {
-		return proxies
+		return proxies, false
 	}
 
 	infos := make([]*ipPureInfo, len(proxies))
+	var usedStale bool
+	var usedStaleMu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxIPPureConcurrency)
 
@@ -68,7 +79,13 @@ func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) []C.Proxy {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			infos[idx] = gb.lookupIPPure(proxy)
+			info, stale := gb.lookupIPPure(proxy)
+			if stale {
+				usedStaleMu.Lock()
+				usedStale = true
+				usedStaleMu.Unlock()
+			}
+			infos[idx] = info
 		}()
 	}
 	wg.Wait()
@@ -91,7 +108,7 @@ func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) []C.Proxy {
 		}
 		filtered = append(filtered, proxy)
 	}
-	return filtered
+	return filtered, usedStale
 }
 
 func (gb *GroupBase) matchIPPureFraudScore(score int) bool {
@@ -103,30 +120,59 @@ func (gb *GroupBase) matchIPPureFraudScore(score int) bool {
 	return true
 }
 
-func (gb *GroupBase) lookupIPPure(proxy C.Proxy) *ipPureInfo {
+func (gb *GroupBase) lookupIPPure(proxy C.Proxy) (*ipPureInfo, bool) {
 	key := gb.ipPureCacheKey(proxy)
 	now := time.Now()
 
-	gb.ipPureCacheMutex.Lock()
-	if entry, ok := gb.ipPureCache[key]; ok && now.Before(entry.expiresAt) {
-		gb.ipPureCacheMutex.Unlock()
-		return entry.info
+	ipPureCacheMutex.Lock()
+	entry, ok := ipPureCache[key]
+	if ok && now.Before(entry.expiresAt) {
+		ipPureCacheMutex.Unlock()
+		return entry.info, false
 	}
-	gb.ipPureCacheMutex.Unlock()
+	ipPureCacheMutex.Unlock()
 
-	info, err := fetchIPPureInfo(proxy)
+	if ok {
+		gb.refreshIPPureInBackground(key, proxy)
+		return entry.info, true
+	}
+
+	info, err, _ := ipPureSingle.Do(key, func() (*ipPureInfo, error) {
+		return fetchAndCacheIPPureInfo(key, proxy)
+	})
 	if err != nil {
 		log.Debugln("ProxyGroup %s skip ippure lookup for %s(%s): %s", gb.Name(), proxy.Name(), proxy.Addr(), err)
 	}
+	return info, false
+}
 
-	gb.ipPureCacheMutex.Lock()
-	gb.ipPureCache[key] = ipPureCacheEntry{
-		info:      info,
-		expiresAt: now.Add(defaultIPPureCacheTTL),
+func (gb *GroupBase) refreshIPPureInBackground(key string, proxy C.Proxy) {
+	go func() {
+		_, err, _ := ipPureSingle.Do(key, func() (*ipPureInfo, error) {
+			return fetchAndCacheIPPureInfo(key, proxy)
+		})
+		if err != nil {
+			log.Debugln("ProxyGroup %s skip async ippure lookup for %s(%s): %s", gb.Name(), proxy.Name(), proxy.Addr(), err)
+		}
+	}()
+}
+
+func fetchAndCacheIPPureInfo(key string, proxy C.Proxy) (*ipPureInfo, error) {
+	info, err := fetchIPPureInfo(proxy)
+
+	ttl := defaultIPPureCacheTTL
+	if err != nil {
+		ttl = defaultIPPureErrorTTL
 	}
-	gb.ipPureCacheMutex.Unlock()
 
-	return info
+	ipPureCacheMutex.Lock()
+	ipPureCache[key] = ipPureCacheEntry{
+		info:      info,
+		expiresAt: time.Now().Add(ttl),
+	}
+	ipPureCacheMutex.Unlock()
+
+	return info, err
 }
 
 func (gb *GroupBase) ipPureCacheKey(proxy C.Proxy) string {
