@@ -20,6 +20,7 @@ vendor
 
 # macOS file
 .DS_Store
+._*
 
 # test suite
 test/config/cache*
