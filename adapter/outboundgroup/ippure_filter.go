@@ -21,7 +21,7 @@ import (
 
 const (
 	defaultIPPureURL      = "https://my.ippure.com/v1/info"
-	defaultIPPureUA       = "Mozilla/5.0 (compatible; mihomo ippure-country-filter)"
+	defaultIPPureUA       = "Mozilla/5.0 (compatible; mihomo ippure-filter)"
 	defaultIPPureTimeout  = 8 * time.Second
 	defaultIPPureCacheTTL = 30 * time.Minute
 	maxIPPureConcurrency  = 8
@@ -53,7 +53,7 @@ type ipPureCacheEntry struct {
 }
 
 func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) []C.Proxy {
-	if len(gb.ipPureCountryFilterCodes) == 0 && len(gb.excludeIPPureCountryFilterCodes) == 0 {
+	if !gb.hasIPPureFilter() {
 		return proxies
 	}
 
@@ -86,9 +86,21 @@ func (gb *GroupBase) filterIPPureProxies(proxies []C.Proxy) []C.Proxy {
 		if len(gb.excludeIPPureCountryFilterCodes) > 0 && slices.Contains(gb.excludeIPPureCountryFilterCodes, countryCode) {
 			continue
 		}
+		if !gb.matchIPPureFraudScore(info.FraudScore) {
+			continue
+		}
 		filtered = append(filtered, proxy)
 	}
 	return filtered
+}
+
+func (gb *GroupBase) matchIPPureFraudScore(score int) bool {
+	for _, condition := range gb.ipPureFraudScoreConditions {
+		if !condition(score) {
+			return false
+		}
+	}
+	return true
 }
 
 func (gb *GroupBase) lookupIPPure(proxy C.Proxy) *ipPureInfo {
@@ -104,7 +116,7 @@ func (gb *GroupBase) lookupIPPure(proxy C.Proxy) *ipPureInfo {
 
 	info, err := fetchIPPureInfo(proxy)
 	if err != nil {
-		log.Debugln("ProxyGroup %s skip ippure-country-filter lookup for %s(%s): %s", gb.Name(), proxy.Name(), proxy.Addr(), err)
+		log.Debugln("ProxyGroup %s skip ippure lookup for %s(%s): %s", gb.Name(), proxy.Name(), proxy.Addr(), err)
 	}
 
 	gb.ipPureCacheMutex.Lock()

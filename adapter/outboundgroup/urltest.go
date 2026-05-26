@@ -253,6 +253,7 @@ func NewURLTest(option GroupCommonOption, urlTestOption URLTestOption, emptyFall
 			ExcludeFilter:              option.ExcludeFilter,
 			IPPureCountryFilter:        option.IPPureCountryFilter,
 			ExcludeIPPureCountryFilter: option.ExcludeIPPureCountryFilter,
+			IPPureFraudScoreFilter:     option.IPPureFraudScoreFilter,
 			ExcludeType:                option.ExcludeType,
 			TestTimeout:                option.TestTimeout,
 			MaxFailedTimes:             option.MaxFailedTimes,
