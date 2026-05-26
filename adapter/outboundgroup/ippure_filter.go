@@ -104,7 +104,7 @@ func (gb *GroupBase) matchIPPureFraudScore(score int) bool {
 }
 
 func (gb *GroupBase) lookupIPPure(proxy C.Proxy) *ipPureInfo {
-	key := proxy.Name() + "\x00" + proxy.Addr()
+	key := gb.ipPureCacheKey(proxy)
 	now := time.Now()
 
 	gb.ipPureCacheMutex.Lock()
@@ -127,6 +127,24 @@ func (gb *GroupBase) lookupIPPure(proxy C.Proxy) *ipPureInfo {
 	gb.ipPureCacheMutex.Unlock()
 
 	return info
+}
+
+func (gb *GroupBase) ipPureCacheKey(proxy C.Proxy) string {
+	addr := strings.TrimSpace(proxy.Addr())
+	key := proxy.Name() + "\x00" + addr
+
+	host := proxyAddrHost(addr)
+	if host == "" {
+		return key
+	}
+
+	ip, err := resolveProxyHostIP(host)
+	if err != nil {
+		log.Debugln("ProxyGroup %s use hostname ippure cache key for %s(%s): %s", gb.Name(), proxy.Name(), addr, err)
+		return key
+	}
+
+	return key + "\x00" + ip.String()
 }
 
 func fetchIPPureInfo(proxy C.Proxy) (*ipPureInfo, error) {
