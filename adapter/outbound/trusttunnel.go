@@ -98,6 +98,7 @@ func NewTrustTunnel(option TrustTunnelOption) (*TrustTunnel, error) {
 			Interface:    option.Interface,
 			RoutingMark:  option.RoutingMark,
 			Prefer:       option.IPVersion,
+			Weight:       option.Weight,
 		}),
 		option: &option,
 	}
