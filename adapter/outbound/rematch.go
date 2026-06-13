@@ -49,6 +49,7 @@ func NewRematch(option RematchOption) (*Rematch, error) {
 			Type:         C.Rematch,
 			ProviderName: option.ProviderName,
 			UDP:          true,
+			Weight:       option.Weight,
 		}),
 		targetRematchName: option.TargetRematchName,
 		targetSubRule:     option.TargetSubRule,
