@@ -209,11 +209,6 @@ func (u *URLTest) MarshalJSON() ([]byte, error) {
 		all = append(all, proxy.Name())
 	}
 
-	icon := u.Icon()
-	if u.respectWeight && icon == "" {
-		icon = "⚖️"
-	}
-
 	return json.Marshal(map[string]any{
 		"type":           "URLTest",
 		"now":            u.Now(),
@@ -222,7 +217,7 @@ func (u *URLTest) MarshalJSON() ([]byte, error) {
 		"expectedStatus": u.expectedStatus,
 		"fixed":          u.selected,
 		"hidden":         u.Hidden(),
-		"icon":           icon,
+		"icon":           u.Icon(),
 		"emptyFallback":  u.EmptyFallback().Name(),
 	})
 }
