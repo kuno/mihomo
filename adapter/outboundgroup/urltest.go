@@ -197,6 +197,10 @@ func (u *URLTest) SupportUDP() bool {
 	return u.fast(false).SupportUDP()
 }
 
+func (u *URLTest) SupportUDPForDisplay() bool {
+	return !u.disableUDP
+}
+
 // IsL3Protocol implements C.ProxyAdapter
 func (u *URLTest) IsL3Protocol(metadata *C.Metadata) bool {
 	return u.fast(false).IsL3Protocol(metadata)
@@ -205,13 +209,13 @@ func (u *URLTest) IsL3Protocol(metadata *C.Metadata) bool {
 // MarshalJSON implements C.ProxyAdapter
 func (u *URLTest) MarshalJSON() ([]byte, error) {
 	all := []string{}
-	for _, proxy := range u.GetProxies(false) {
+	for _, proxy := range u.GetProxiesForDisplay() {
 		all = append(all, proxy.Name())
 	}
 
 	return json.Marshal(map[string]any{
 		"type":           "URLTest",
-		"now":            u.Now(),
+		"now":            u.nowForDisplay(),
 		"all":            all,
 		"testUrl":        u.testUrl,
 		"expectedStatus": u.expectedStatus,
@@ -222,12 +226,34 @@ func (u *URLTest) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (u *URLTest) nowForDisplay() string {
+	proxies := u.GetProxiesForDisplay()
+	for _, proxy := range proxies {
+		if proxy.Name() == u.selected && proxy.AliveForTestUrl(u.testUrl) {
+			return proxy.Name()
+		}
+	}
+	if u.fastNode != nil {
+		for _, proxy := range proxies {
+			if proxy.Name() == u.fastNode.Name() && proxy.AliveForTestUrl(u.testUrl) {
+				return proxy.Name()
+			}
+		}
+	}
+	for _, proxy := range proxies {
+		if proxy.AliveForTestUrl(u.testUrl) {
+			return proxy.Name()
+		}
+	}
+	return proxies[0].Name()
+}
+
 func (u *URLTest) Providers() []P.ProxyProvider {
 	return u.providers
 }
 
 func (u *URLTest) Proxies() []C.Proxy {
-	return u.GetProxies(false)
+	return u.GetProxiesForDisplay()
 }
 
 func (u *URLTest) URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (map[string]uint16, error) {

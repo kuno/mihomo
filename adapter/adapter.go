@@ -145,7 +145,11 @@ func (p *Proxy) MarshalJSON() ([]byte, error) {
 	mapping["extra"] = p.ExtraDelayHistories()
 	mapping["alive"] = p.alive.Load()
 	mapping["name"] = p.Name()
-	mapping["udp"] = p.SupportUDP()
+	if displaySupporter, ok := p.ProxyAdapter.(interface{ SupportUDPForDisplay() bool }); ok {
+		mapping["udp"] = displaySupporter.SupportUDPForDisplay()
+	} else {
+		mapping["udp"] = p.SupportUDP()
+	}
 	mapping["uot"] = p.SupportUOT()
 	mapping["weight"] = p.Weight()
 
