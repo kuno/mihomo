@@ -157,6 +157,56 @@ func (gb *GroupBase) Touch() {
 }
 
 func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
+	return gb.getProxies(touch, true)
+}
+
+func (gb *GroupBase) GetProxiesForDisplay() []C.Proxy {
+	if gb.getProxiesMutex.TryLock() {
+		if len(gb.providerProxies) > 0 {
+			proxies := gb.providerProxies
+			gb.getProxiesMutex.Unlock()
+			return proxies
+		}
+		gb.getProxiesMutex.Unlock()
+	}
+
+	var proxies []C.Proxy
+	for _, pd := range gb.providers {
+		proxies = append(proxies, pd.Proxies()...)
+	}
+	if len(proxies) == 0 {
+		return []C.Proxy{gb.EmptyFallback()}
+	}
+	return proxies
+}
+
+func (gb *GroupBase) SupportUDPForDisplay() bool {
+	return gb.supportUDPForDisplay(map[string]struct{}{})
+}
+
+func (gb *GroupBase) supportUDPForDisplay(seen map[string]struct{}) bool {
+	if _, ok := seen[gb.Name()]; ok {
+		return false
+	}
+	seen[gb.Name()] = struct{}{}
+
+	for _, proxy := range gb.GetProxiesForDisplay() {
+		if group, ok := proxy.Adapter().(interface {
+			supportUDPForDisplay(map[string]struct{}) bool
+		}); ok {
+			if group.supportUDPForDisplay(seen) {
+				return true
+			}
+			continue
+		}
+		if proxy.SupportUDP() {
+			return true
+		}
+	}
+	return false
+}
+
+func (gb *GroupBase) getProxies(touch bool, refreshIPPure bool) []C.Proxy {
 	providerVersions := make([]uint32, len(gb.providers))
 	for i, pd := range gb.providers {
 		if touch { // touch first
@@ -308,6 +358,16 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 			newProxies = append(newProxies, p)
 		}
 		proxies = newProxies
+	}
+
+	if gb.hasIPPureFilter() && !refreshIPPure {
+		if sameProviderVersions && len(gb.providerProxies) > 0 {
+			return gb.providerProxies
+		}
+		if len(proxies) == 0 {
+			return []C.Proxy{gb.EmptyFallback()}
+		}
+		return proxies
 	}
 
 	var usedStaleIPPure bool

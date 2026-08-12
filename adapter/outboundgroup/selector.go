@@ -47,6 +47,10 @@ func (s *Selector) SupportUDP() bool {
 	return s.selectedProxy(false).SupportUDP()
 }
 
+func (s *Selector) SupportUDPForDisplay() bool {
+	return !s.disableUDP
+}
+
 // IsL3Protocol implements C.ProxyAdapter
 func (s *Selector) IsL3Protocol(metadata *C.Metadata) bool {
 	return s.selectedProxy(false).IsL3Protocol(metadata)
@@ -55,7 +59,7 @@ func (s *Selector) IsL3Protocol(metadata *C.Metadata) bool {
 // MarshalJSON implements C.ProxyAdapter
 func (s *Selector) MarshalJSON() ([]byte, error) {
 	all := []string{}
-	for _, proxy := range s.GetProxies(false) {
+	for _, proxy := range s.GetProxiesForDisplay() {
 		all = append(all, proxy.Name())
 	}
 	// When testurl is the default value
@@ -67,7 +71,7 @@ func (s *Selector) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(map[string]any{
 		"type":          s.Type().String(),
-		"now":           s.Now(),
+		"now":           s.nowForDisplay(),
 		"all":           all,
 		"testUrl":       url,
 		"hidden":        s.Hidden(),
@@ -78,6 +82,16 @@ func (s *Selector) MarshalJSON() ([]byte, error) {
 
 func (s *Selector) Now() string {
 	return s.selectedProxy(false).Name()
+}
+
+func (s *Selector) nowForDisplay() string {
+	proxies := s.GetProxiesForDisplay()
+	for _, proxy := range proxies {
+		if proxy.Name() == s.selected {
+			return proxy.Name()
+		}
+	}
+	return proxies[0].Name()
 }
 
 func (s *Selector) Set(name string) error {
@@ -116,7 +130,7 @@ func (s *Selector) Providers() []P.ProxyProvider {
 }
 
 func (s *Selector) Proxies() []C.Proxy {
-	return s.GetProxies(false)
+	return s.GetProxiesForDisplay()
 }
 
 func NewSelector(option GroupCommonOption, selectorOption SelectorOption, emptyFallback C.Proxy, providers []P.ProxyProvider) (*Selector, error) {
