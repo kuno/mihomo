@@ -123,6 +123,10 @@ func (lb *LoadBalance) SupportUDP() bool {
 	return !lb.disableUDP
 }
 
+func (lb *LoadBalance) SupportUDPForDisplay() bool {
+	return !lb.disableUDP
+}
+
 // IsL3Protocol implements C.ProxyAdapter
 func (lb *LoadBalance) IsL3Protocol(metadata *C.Metadata) bool {
 	return lb.Unwrap(metadata, false).IsL3Protocol(metadata)
@@ -379,7 +383,7 @@ func (lb *LoadBalance) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
 // MarshalJSON implements C.ProxyAdapter
 func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
 	var all []string
-	for _, proxy := range lb.GetProxies(false) {
+	for _, proxy := range lb.GetProxiesForDisplay() {
 		all = append(all, proxy.Name())
 	}
 	return json.Marshal(map[string]any{
@@ -398,7 +402,7 @@ func (lb *LoadBalance) Providers() []P.ProxyProvider {
 }
 
 func (lb *LoadBalance) Proxies() []C.Proxy {
-	return lb.GetProxies(false)
+	return lb.GetProxiesForDisplay()
 }
 
 func (lb *LoadBalance) Now() string {

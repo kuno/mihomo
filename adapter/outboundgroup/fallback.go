@@ -73,6 +73,10 @@ func (f *Fallback) SupportUDP() bool {
 	return proxy.SupportUDP()
 }
 
+func (f *Fallback) SupportUDPForDisplay() bool {
+	return !f.disableUDP
+}
+
 // IsL3Protocol implements C.ProxyAdapter
 func (f *Fallback) IsL3Protocol(metadata *C.Metadata) bool {
 	return f.findAliveProxy(false).IsL3Protocol(metadata)
@@ -81,12 +85,12 @@ func (f *Fallback) IsL3Protocol(metadata *C.Metadata) bool {
 // MarshalJSON implements C.ProxyAdapter
 func (f *Fallback) MarshalJSON() ([]byte, error) {
 	all := []string{}
-	for _, proxy := range f.GetProxies(false) {
+	for _, proxy := range f.GetProxiesForDisplay() {
 		all = append(all, proxy.Name())
 	}
 	return json.Marshal(map[string]any{
 		"type":           f.Type().String(),
-		"now":            f.Now(),
+		"now":            f.nowForDisplay(),
 		"all":            all,
 		"testUrl":        f.testUrl,
 		"expectedStatus": f.expectedStatus,
@@ -144,6 +148,21 @@ func (f *Fallback) findAliveProxy(touch bool) C.Proxy {
 	return proxies[0]
 }
 
+func (f *Fallback) nowForDisplay() string {
+	proxies := f.GetProxiesForDisplay()
+	for _, proxy := range proxies {
+		if len(f.selected) == 0 {
+			if proxy.AliveForTestUrl(f.testUrl) {
+				return proxy.Name()
+			}
+		} else if proxy.Name() == f.selected && proxy.AliveForTestUrl(f.testUrl) {
+			return proxy.Name()
+		}
+	}
+
+	return proxies[0].Name()
+}
+
 func (f *Fallback) Set(name string) error {
 	var p C.Proxy
 	for _, proxy := range f.GetProxies(false) {
@@ -177,7 +196,7 @@ func (f *Fallback) Providers() []P.ProxyProvider {
 }
 
 func (f *Fallback) Proxies() []C.Proxy {
-	return f.GetProxies(false)
+	return f.GetProxiesForDisplay()
 }
 
 func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyFallback C.Proxy, providers []P.ProxyProvider) (*Fallback, error) {
