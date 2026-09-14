@@ -161,23 +161,7 @@ func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 }
 
 func (gb *GroupBase) GetProxiesForDisplay() []C.Proxy {
-	if gb.getProxiesMutex.TryLock() {
-		if len(gb.providerProxies) > 0 {
-			proxies := gb.providerProxies
-			gb.getProxiesMutex.Unlock()
-			return proxies
-		}
-		gb.getProxiesMutex.Unlock()
-	}
-
-	var proxies []C.Proxy
-	for _, pd := range gb.providers {
-		proxies = append(proxies, pd.Proxies()...)
-	}
-	if len(proxies) == 0 {
-		return []C.Proxy{gb.EmptyFallback()}
-	}
-	return proxies
+	return gb.GetProxies(false)
 }
 
 func (gb *GroupBase) SupportUDPForDisplay() bool {
