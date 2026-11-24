@@ -40,6 +40,7 @@ type GroupCommonOption struct {
 	ExcludeIPPureCountryFilter string   `group:"exclude-ippure-country-filter,omitempty"`
 	IPPureFraudScoreFilter     string   `group:"ippure-fraud-score-filter,omitempty"`
 	ExcludeType                string   `group:"exclude-type,omitempty"`
+	OnlyModernProtocols        bool     `group:"only-modern-protocols,omitempty"` // Retain only VLESS and Hysteria2 proxies.
 	ExpectedStatus             string   `group:"expected-status,omitempty"`
 	IncludeAll                 bool     `group:"include-all,omitempty"`
 	IncludeAllProxies          bool     `group:"include-all-proxies,omitempty"`
@@ -54,7 +55,8 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 	decoder := structure.NewDecoder(structure.Option{TagName: "group", WeaklyTypedInput: true})
 
 	groupOption := GroupCommonOption{
-		Lazy: true,
+		Lazy:                true,
+		OnlyModernProtocols: true,
 	}
 	if err := decoder.Decode(config, &groupOption); err != nil {
 		return nil, errFormat

@@ -30,6 +30,7 @@ type GroupBase struct {
 	excludeIPPureCountryFilterCodes []string
 	ipPureFraudScoreConditions      []func(int) bool
 	excludeTypeArray                []string
+	onlyModernProtocols             bool
 	weightFilterConditions          []func(int) bool
 	providers                       []P.ProxyProvider
 	failedTestMux                   sync.Mutex
@@ -58,6 +59,7 @@ type GroupBaseOption struct {
 	ExcludeIPPureCountryFilter string
 	IPPureFraudScoreFilter     string
 	ExcludeType                string
+	OnlyModernProtocols        bool
 	TestTimeout                int
 	MaxFailedTimes             int
 	EmptyFallback              C.Proxy
@@ -97,6 +99,7 @@ func NewGroupBase(opt GroupBaseOption) *GroupBase {
 		ipPureCountryFilterCodes:        splitCountryFilter(opt.IPPureCountryFilter),
 		excludeIPPureCountryFilterCodes: splitCountryFilter(opt.ExcludeIPPureCountryFilter),
 		excludeTypeArray:                excludeTypeArray,
+		onlyModernProtocols:             opt.OnlyModernProtocols,
 		providers:                       opt.Providers,
 		failedTesting:                   atomic.NewBool(false),
 		testTimeout:                     opt.TestTimeout,
@@ -340,6 +343,17 @@ func (gb *GroupBase) getProxies(touch bool, refreshIPPure bool) []C.Proxy {
 				}
 			}
 			newProxies = append(newProxies, p)
+		}
+		proxies = newProxies
+	}
+
+	if gb.onlyModernProtocols {
+		var newProxies []C.Proxy
+		for _, p := range proxies {
+			switch p.Type() {
+			case C.Vless, C.Hysteria2:
+				newProxies = append(newProxies, p)
+			}
 		}
 		proxies = newProxies
 	}

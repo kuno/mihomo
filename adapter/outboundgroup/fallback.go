@@ -212,6 +212,7 @@ func NewFallback(option GroupCommonOption, fallbackOption FallbackOption, emptyF
 			ExcludeIPPureCountryFilter: option.ExcludeIPPureCountryFilter,
 			IPPureFraudScoreFilter:     option.IPPureFraudScoreFilter,
 			ExcludeType:                option.ExcludeType,
+			OnlyModernProtocols:        option.OnlyModernProtocols,
 			TestTimeout:                option.TestTimeout,
 			MaxFailedTimes:             option.MaxFailedTimes,
 			EmptyFallback:              emptyFallback,
